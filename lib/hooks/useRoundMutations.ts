@@ -4,7 +4,6 @@ import {
   recordResult,
   startMatch,
   swapPlayerInMatch,
-  undoLastResult,
   type RecordResultInput,
   type StartMatchInput,
   type SwapPlayerInput,
@@ -14,4 +13,3 @@ export const useStartMatch = () => useSessionMutation<StartMatchInput>(startMatc
 export const useSwapPlayerInMatch = () => useSessionMutation<SwapPlayerInput>(swapPlayerInMatch);
 export const useRecordResult = () => useSessionMutation<RecordResultInput>(recordResult);
 export const useChangeResult = () => useSessionMutation<RecordResultInput>(changeResult);
-export const useUndoLastResult = () => useSessionMutation<void>(undoLastResult);

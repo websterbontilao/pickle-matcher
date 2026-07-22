@@ -28,6 +28,16 @@ export function currentlyWaitingPlayers(state: SessionState): Player[] {
   return state.players.filter((p) => p.active && !busy.has(p.id));
 }
 
+/** Every decided match, most recently finished first. Includes matches
+ * that are no longer any court's "current" one (e.g. superseded by a later
+ * auto-generated match), since this is a record of what was actually
+ * played, not a live-state view. */
+export function matchHistory(state: SessionState): Match[] {
+  return state.matches
+    .filter((m) => m.winner !== null)
+    .sort((a, b) => b.timestamp - a.timestamp || b.roundNumber - a.roundNumber);
+}
+
 /**
  * Fills every court that doesn't currently have an in-progress-or-pending
  * match with a freshly generated one, as long as there are enough free
@@ -169,7 +179,7 @@ export function recordResult(state: SessionState, input: RecordResultInput): Ses
 }
 
 /** Reverses a single recorded match's stats and resets its winner to null,
- * shared by both undoLastResult and changeResult. */
+ * used by changeResult to swap in a different winner. */
 function revertMatchResult(state: SessionState, match: Match): SessionState {
   const winningTeam = match.winner === "A" ? match.teamA : match.teamB;
   const losingTeam = match.winner === "A" ? match.teamB : match.teamA;
@@ -197,16 +207,6 @@ function revertMatchResult(state: SessionState, match: Match): SessionState {
   const matches = state.matches.map((m) => (m.id === match.id ? { ...m, winner: null } : m));
 
   return { ...state, players, matches };
-}
-
-/** Reverses the most recently recorded result (by timestamp) so mistakes
- * can be corrected mid-game. */
-export function undoLastResult(state: SessionState): SessionState {
-  const recorded = state.matches.filter((m) => m.winner !== null);
-  if (recorded.length === 0) return state;
-
-  const last = recorded.reduce((a, b) => (a.timestamp > b.timestamp ? a : b));
-  return revertMatchResult(state, last);
 }
 
 /** Changes an already-decided match to a different winner — reverts the

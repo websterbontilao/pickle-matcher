@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, Settings2, ListOrdered } from "lucide-react";
+import { Users, Settings2, ListOrdered, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/", label: "Round", icon: ListOrdered },
   { href: "/players", label: "Players", icon: Users },
+  { href: "/history", label: "History", icon: History },
   { href: "/setup", label: "Setup", icon: Settings2 },
 ] as const;
 

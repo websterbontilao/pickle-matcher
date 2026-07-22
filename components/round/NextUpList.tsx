@@ -1,8 +1,23 @@
 import { Armchair, Zap } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getSchedulableUnits } from "@/lib/engine/units";
-import { isForcedPlay, isForcedRest } from "@/lib/engine/restRules";
+import { isForcedPlay, isForcedRest, REST_REASON } from "@/lib/engine/restRules";
 import { currentlyWaitingPlayers } from "@/lib/mutations/rounds";
 import type { SessionState } from "@/lib/schemas";
+
+const GUARANTEED_REASON = "Guaranteed to play next — sat out too many times in a row";
+
+function StatusIcon({ icon: Icon, label, className }: { icon: typeof Armchair; label: string; className: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<button type="button" className="align-middle" />}>
+        <Icon className={className} />
+        <span className="sr-only">{label}</span>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 /** Preview of who's waiting and in what priority order the scheduling
  * engine will actually use for the next court that frees up — same
@@ -44,11 +59,15 @@ export function NextUpList({ state }: { state: SessionState }) {
                 <span className="flex items-baseline gap-1.5">
                   <span className="w-4 shrink-0 text-xs tabular-nums text-muted-foreground">{i + 1}</span>
                   <span>{unitPlayers.map((p) => p?.name ?? "Unknown").join(" & ")}</span>
-                  {resting && <Armchair className="size-3 shrink-0 text-amber-600 dark:text-amber-400" />}
+                  {resting && (
+                    <StatusIcon
+                      icon={Armchair}
+                      label={REST_REASON}
+                      className="size-3 shrink-0 text-amber-600 dark:text-amber-400"
+                    />
+                  )}
                   {guaranteed && (
-                    <span title="Guaranteed to play next — sat out too many times in a row">
-                      <Zap className="size-3 shrink-0 text-primary" />
-                    </span>
+                    <StatusIcon icon={Zap} label={GUARANTEED_REASON} className="size-3 shrink-0 text-primary" />
                   )}
                 </span>
                 <span className="shrink-0 text-xs tabular-nums text-muted-foreground">

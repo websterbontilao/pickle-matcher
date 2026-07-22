@@ -6,7 +6,6 @@ import { currentMatchForCourt, isMatchSwappable } from "@/lib/mutations/rounds";
 import { CourtCard } from "./CourtCard";
 import { StartSessionButton } from "./StartSessionButton";
 import { StopSessionButton } from "./StopSessionButton";
-import { UndoResultButton } from "./UndoResultButton";
 import { NextUpList } from "./NextUpList";
 import { SwapTip } from "./SwapTip";
 import type { Player, SessionState } from "@/lib/schemas";
@@ -52,7 +51,6 @@ export function RoundView() {
     );
   }
 
-  const anyRecorded = state.matches.some((m) => m.winner !== null);
   const anyStarted = state.matches.some((m) => m.startedAt !== null);
   const anySwappable = state.courts.some((court) => {
     const match = currentMatchForCourt(state, court.id);
@@ -64,10 +62,7 @@ export function RoundView() {
       <div>
         <div className="flex items-center justify-between border-b px-3 py-2">
           <h1 className="text-sm font-semibold">Courts</h1>
-          <div className="flex items-center gap-1">
-            {!anyStarted && <StopSessionButton />}
-            <UndoResultButton disabled={!anyRecorded} />
-          </div>
+          {!anyStarted && <StopSessionButton />}
         </div>
 
         {anySwappable && <SwapTip />}

@@ -1,16 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { EMPTY_SESSION_STATE, type Player, type SessionState } from "@/lib/schemas";
 import {
-  busyPlayerIds,
   changeResult,
-  currentlyWaitingPlayers,
   currentMatchForCourt,
   fillOpenCourts,
   isMatchSwappable,
+  matchHistory,
   recordResult,
   startMatch,
   swapPlayerInMatch,
-  undoLastResult,
 } from "@/lib/mutations/rounds";
 
 let idCounter = 0;
@@ -102,7 +100,7 @@ describe("startMatch / recordResult gating", () => {
     expect(started.matches.find((m) => m.id === match.id)?.winner).toBe("A");
   });
 
-  it("increments consecutiveGames for everyone in the match on record, decrements on undo", () => {
+  it("increments consecutiveGames for everyone in the match on record, without double-counting on a winner change", () => {
     const players = Array.from({ length: 8 }, () => makePlayer());
     let state = fillOpenCourts(baseState({ players }));
     const match = currentMatchForCourt(state, "c1")!;
@@ -113,9 +111,9 @@ describe("startMatch / recordResult gating", () => {
       expect(state.players.find((p) => p.id === id)?.consecutiveGames).toBe(1);
     }
 
-    state = undoLastResult(state);
+    state = changeResult(state, { matchId: match.id, winner: "B" });
     for (const id of [...match.teamA, ...match.teamB]) {
-      expect(state.players.find((p) => p.id === id)?.consecutiveGames).toBe(0);
+      expect(state.players.find((p) => p.id === id)?.consecutiveGames).toBe(1);
     }
   });
 
@@ -289,40 +287,29 @@ describe("consecutiveSitOuts tracking", () => {
   });
 });
 
-describe("busyPlayerIds / currentlyWaitingPlayers after undo (regression)", () => {
-  it("doesn't keep a superseded (undone) match's players marked busy once the court has auto-advanced", () => {
-    // 6 players, 1 court doubles — 2 always wait, so there's always someone
-    // whose "waiting" status could be corrupted by a dangling old match.
-    const players = Array.from({ length: 6 }, () => makePlayer());
+describe("matchHistory", () => {
+  it("includes only decided matches, most recently finished first", () => {
+    const players = Array.from({ length: 4 }, () => makePlayer());
     let state = fillOpenCourts(baseState({ players, courts: [{ id: "c1", name: "Court 1" }] }));
-    const firstMatch = currentMatchForCourt(state, "c1")!;
-    state = startMatch(state, { matchId: firstMatch.id });
-    state = fillOpenCourts(recordResult(state, { matchId: firstMatch.id, winner: "A" }));
+    const match1 = currentMatchForCourt(state, "c1")!;
+    state = startMatch(state, { matchId: match1.id });
+    state = fillOpenCourts(recordResult(state, { matchId: match1.id, winner: "A" }));
 
-    // The court has now auto-advanced to a second match; undo the first.
-    const secondMatch = currentMatchForCourt(state, "c1")!;
-    expect(secondMatch.id).not.toBe(firstMatch.id);
-    state = undoLastResult(state);
+    const match2 = currentMatchForCourt(state, "c1")!;
+    expect(match2.id).not.toBe(match1.id);
+    state = startMatch(state, { matchId: match2.id });
+    state = fillOpenCourts(recordResult(state, { matchId: match2.id, winner: "B" }));
 
-    // The reverted match is winner:null again but is no longer "current" for
-    // the court — its players must not still count as busy.
-    const revertedMatch = state.matches.find((m) => m.id === firstMatch.id)!;
-    expect(revertedMatch.winner).toBeNull();
-    const busy = busyPlayerIds(state);
-    for (const id of [...secondMatch.teamA, ...secondMatch.teamB]) {
-      expect(busy.has(id)).toBe(true);
-    }
-    const onlyInRevertedMatch = [...firstMatch.teamA, ...firstMatch.teamB].filter(
-      (id) => ![...secondMatch.teamA, ...secondMatch.teamB].includes(id),
-    );
-    for (const id of onlyInRevertedMatch) {
-      expect(busy.has(id)).toBe(false);
-    }
+    const history = matchHistory(state);
 
-    // And they should show up as waiting (this is what "Next Up" renders from).
-    const waitingIds = new Set(currentlyWaitingPlayers(state).map((p) => p.id));
-    for (const id of onlyInRevertedMatch) {
-      expect(waitingIds.has(id)).toBe(true);
-    }
+    expect(history.map((m) => m.id)).toEqual([match2.id, match1.id]);
+    expect(history.every((m) => m.winner !== null)).toBe(true);
+  });
+
+  it("excludes not-yet-decided matches", () => {
+    const players = Array.from({ length: 4 }, () => makePlayer());
+    const state = fillOpenCourts(baseState({ players, courts: [{ id: "c1", name: "Court 1" }] }));
+
+    expect(matchHistory(state)).toHaveLength(0);
   });
 });

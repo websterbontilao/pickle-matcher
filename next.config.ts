@@ -25,7 +25,7 @@ const buildRevision = Date.now().toString();
 // "<route>/index.html", served at "<route>/" — precache entries must match
 // exactly, and (when deployed under a GitHub Pages subpath) must include
 // basePath too, since that's the actual URL the browser requests.
-const routes = ["/", "/players/", "/setup/"];
+const routes = ["/", "/players/", "/history/", "/setup/"];
 
 const withSerwist = withSerwistInit({
   swSrc: "app/sw.ts",

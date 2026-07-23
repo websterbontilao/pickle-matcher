@@ -117,9 +117,14 @@ export interface SwapPlayerInput {
  * - on the opposing team of this same match — a team switch;
  * - in a different not-yet-started match — a two-way swap;
  * - nowhere (free/waiting) — a one-way replacement.
- * Never touches gamesPlayed/joinedAt/consecutiveGames. No-ops if this match
- * is locked, `outPlayerId` isn't actually in it, the swap is a no-op, or
- * `inPlayerId` is actively playing (started) in a different match.
+ * Never touches gamesPlayed/joinedAt/consecutiveGames. Whichever of the two
+ * ends up seated in a match gets `consecutiveSitOuts` cleared — otherwise a
+ * player brought in from the bench keeps whatever streak they'd built up
+ * (fillOpenCourts only clears it when *it* seats someone), and immediately
+ * re-qualifies for a guaranteed spot the very next cycle even though the
+ * swap just gave them a game. No-ops if this match is locked, `outPlayerId`
+ * isn't actually in it, the swap is a no-op, or `inPlayerId` is actively
+ * playing (started) in a different match.
  */
 export function swapPlayerInMatch(state: SessionState, input: SwapPlayerInput): SessionState {
   const match = state.matches.find((m) => m.id === input.matchId);
@@ -146,7 +151,17 @@ export function swapPlayerInMatch(state: SessionState, input: SwapPlayerInput): 
     return m;
   });
 
-  return { ...state, matches };
+  const stillSeated = new Set(
+    matches.filter((m) => m.winner === null).flatMap((m) => [...m.teamA, ...m.teamB]),
+  );
+  const players = state.players.map((p) => {
+    if ((p.id === input.inPlayerId || p.id === input.outPlayerId) && stillSeated.has(p.id) && p.consecutiveSitOuts !== 0) {
+      return { ...p, consecutiveSitOuts: 0 };
+    }
+    return p;
+  });
+
+  return { ...state, matches, players };
 }
 
 export interface RecordResultInput {

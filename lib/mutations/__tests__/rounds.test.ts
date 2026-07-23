@@ -220,6 +220,43 @@ describe("swapPlayerInMatch", () => {
 
     expect(swapped).toBe(state);
   });
+
+  it("clears consecutiveSitOuts for a benched player brought in, so they don't immediately re-qualify for a guaranteed spot after playing (regression)", () => {
+    const A = makePlayer({ id: "A" });
+    const B = makePlayer({ id: "B" });
+    const C = makePlayer({ id: "C" });
+    const D = makePlayer({ id: "D" });
+    // P already sat out 2 cycles in a row (elsewhere in the session) before
+    // this pending match was generated, so P isn't in it.
+    const P = makePlayer({ id: "P", consecutiveSitOuts: 2 });
+    const Q = makePlayer({ id: "Q" });
+    const pendingMatch = {
+      id: "m1",
+      roundNumber: 1,
+      courtId: "c1",
+      teamA: ["A", "B"],
+      teamB: ["C", "D"],
+      winner: null,
+      startedAt: null,
+      timestamp: Date.now(),
+    };
+    let state = baseState({
+      courts: [{ id: "c1", name: "Court 1" }],
+      players: [A, B, C, D, P, Q],
+      matches: [pendingMatch],
+    });
+
+    state = swapPlayerInMatch(state, { matchId: "m1", outPlayerId: "C", inPlayerId: "P" });
+    expect(state.players.find((p) => p.id === "P")?.consecutiveSitOuts).toBe(0);
+
+    const match = currentMatchForCourt(state, "c1")!;
+    state = startMatch(state, { matchId: match.id });
+    state = fillOpenCourts(recordResult(state, { matchId: match.id, winner: "A" }));
+
+    const nextMatch = currentMatchForCourt(state, "c1")!;
+    const seated = [...nextMatch.teamA, ...nextMatch.teamB];
+    expect(seated).not.toContain("P");
+  });
 });
 
 describe("changeResult", () => {

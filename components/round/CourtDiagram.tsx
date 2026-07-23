@@ -33,14 +33,10 @@ function KitchenStrip({ highlighted }: { highlighted?: boolean }) {
   return (
     <div
       className={cn(
-        "flex w-7 shrink-0 items-center justify-center border-x border-dashed border-foreground/15 bg-foreground/3",
+        "w-7 shrink-0 border-x border-dashed border-foreground/15 bg-foreground/3",
         highlighted && "bg-primary/10",
       )}
-    >
-      <span className="text-[8px] font-medium tracking-widest text-muted-foreground/50 uppercase [writing-mode:vertical-rl]">
-        Kitchen
-      </span>
-    </div>
+    />
   );
 }
 

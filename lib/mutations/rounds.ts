@@ -169,19 +169,24 @@ export interface RecordResultInput {
   winner: "A" | "B";
 }
 
-export function recordResult(state: SessionState, input: RecordResultInput): SessionState {
+export interface RecordResultDeps {
+  random?: () => number;
+}
+
+export function recordResult(state: SessionState, input: RecordResultInput, deps: RecordResultDeps = {}): SessionState {
   const match = state.matches.find((m) => m.id === input.matchId);
   if (!match || match.startedAt === null || match.winner !== null) return state;
 
   const winningTeam = input.winner === "A" ? match.teamA : match.teamB;
   const losingTeam = input.winner === "A" ? match.teamB : match.teamA;
+  const queuePositions = queueBackPositions(state.players, [...winningTeam, ...losingTeam], deps.random ?? Math.random);
 
   const players = state.players.map((p) => {
     if (winningTeam.includes(p.id)) {
-      return { ...p, gamesPlayed: p.gamesPlayed + 1, wins: p.wins + 1, consecutiveGames: p.consecutiveGames + 1 };
+      return { ...p, gamesPlayed: p.gamesPlayed + 1, wins: p.wins + 1, consecutiveGames: p.consecutiveGames + 1, queuePosition: queuePositions.get(p.id)! };
     }
     if (losingTeam.includes(p.id)) {
-      return { ...p, gamesPlayed: p.gamesPlayed + 1, losses: p.losses + 1, consecutiveGames: p.consecutiveGames + 1 };
+      return { ...p, gamesPlayed: p.gamesPlayed + 1, losses: p.losses + 1, consecutiveGames: p.consecutiveGames + 1, queuePosition: queuePositions.get(p.id)! };
     }
     return p;
   });
@@ -191,6 +196,21 @@ export function recordResult(state: SessionState, input: RecordResultInput): Ses
   );
 
   return { ...state, players, matches };
+}
+
+/** Sends a batch of just-finished players to the back of the priority
+ * queue, in shuffled order relative to each other — everyone else's queue
+ * position (and thus relative order) is left untouched. This is what makes
+ * an odd-numbered group waiting behind a finished match get reshuffled
+ * amongst itself rather than always resuming in the same order. */
+function queueBackPositions(players: Player[], finishedIds: string[], random: () => number): Map<string, number> {
+  const maxQueuePosition = players.reduce((max, p) => Math.max(max, p.queuePosition), 0);
+  const shuffled = [...finishedIds];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return new Map(shuffled.map((id, index) => [id, maxQueuePosition + 1 + index]));
 }
 
 /** Reverses a single recorded match's stats and resets its winner to null,

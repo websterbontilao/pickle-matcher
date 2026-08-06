@@ -22,14 +22,14 @@ export function getSchedulableUnits(players: Player[]): Unit[] {
       units.push({
         playerIds: [player.id, linked.id],
         gamesPlayed: player.gamesPlayed + linked.gamesPlayed,
-        joinedAt: Math.min(player.joinedAt, linked.joinedAt),
+        queuePosition: Math.min(player.queuePosition, linked.queuePosition),
       });
     } else {
       consumed.add(player.id);
       units.push({
         playerIds: [player.id],
         gamesPlayed: player.gamesPlayed,
-        joinedAt: player.joinedAt,
+        queuePosition: player.queuePosition,
       });
     }
   }
@@ -37,12 +37,12 @@ export function getSchedulableUnits(players: Player[]): Unit[] {
   return sortByPriority(units);
 }
 
-/** Fewer games played first, then whoever joined earliest, then a
- * deterministic id-based tie-break so tests are reproducible. */
+/** Fewer games played first, then queue position, then a deterministic
+ * id-based tie-break so tests are reproducible. */
 export function sortByPriority(units: Unit[]): Unit[] {
   return [...units].sort((a, b) => {
     if (a.gamesPlayed !== b.gamesPlayed) return a.gamesPlayed - b.gamesPlayed;
-    if (a.joinedAt !== b.joinedAt) return a.joinedAt - b.joinedAt;
+    if (a.queuePosition !== b.queuePosition) return a.queuePosition - b.queuePosition;
     return a.playerIds.join(",").localeCompare(b.playerIds.join(","));
   });
 }

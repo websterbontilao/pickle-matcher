@@ -6,6 +6,12 @@ export const PlayerSchema = z.object({
   linkedPlayerId: z.string().optional(),
   active: z.boolean(),
   joinedAt: z.number(),
+  /** Secondary sort key used to break ties on `gamesPlayed` when picking who
+   * plays next — effectively "position in line". Starts equal to `joinedAt`
+   * (so unplayed players queue in join order) and gets bumped to the back —
+   * in shuffled order relative to whoever else just came off court together
+   * — every time this player finishes a match; see `recordResult`. */
+  queuePosition: z.number().default(0),
   gamesPlayed: z.number().int().nonnegative(),
   wins: z.number().int().nonnegative(),
   losses: z.number().int().nonnegative(),

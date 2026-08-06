@@ -10,6 +10,7 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
     name: overrides.name ?? `Player ${idCounter}`,
     active: true,
     joinedAt: idCounter,
+    queuePosition: overrides.queuePosition ?? idCounter,
     gamesPlayed: 0,
     wins: 0,
     losses: 0,

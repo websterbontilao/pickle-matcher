@@ -24,6 +24,7 @@ export function addPlayers(state: SessionState, input: AddPlayersInput): Session
       name: trimmed,
       active: true,
       joinedAt: now + index,
+      queuePosition: now + index,
       gamesPlayed: 0,
       wins: 0,
       losses: 0,

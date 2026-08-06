@@ -19,6 +19,7 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
     name: overrides.name ?? `Player ${idCounter}`,
     active: true,
     joinedAt: idCounter,
+    queuePosition: overrides.queuePosition ?? idCounter,
     gamesPlayed: 0,
     wins: 0,
     losses: 0,
@@ -251,7 +252,11 @@ describe("swapPlayerInMatch", () => {
 
     const match = currentMatchForCourt(state, "c1")!;
     state = startMatch(state, { matchId: match.id });
-    state = fillOpenCourts(recordResult(state, { matchId: match.id, winner: "A" }));
+    // A fixed no-op "random" keeps the back-of-queue shuffle deterministic
+    // for this assertion — that shuffle is intentionally randomized in
+    // production (see recordResult's `queueBackPositions`), which isn't
+    // what this regression test is about.
+    state = fillOpenCourts(recordResult(state, { matchId: match.id, winner: "A" }, { random: () => 0.9999 }));
 
     const nextMatch = currentMatchForCourt(state, "c1")!;
     const seated = [...nextMatch.teamA, ...nextMatch.teamB];

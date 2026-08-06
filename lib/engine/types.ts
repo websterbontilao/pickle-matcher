@@ -6,7 +6,7 @@ import type { Match, SitOut } from "@/lib/schemas";
 export interface Unit {
   playerIds: string[];
   gamesPlayed: number;
-  joinedAt: number;
+  queuePosition: number;
 }
 
 export interface MatchGenerationResult {

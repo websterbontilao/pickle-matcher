@@ -23,12 +23,15 @@ export function isForcedPlay(player: Player): boolean {
   return player.consecutiveSitOuts >= SIT_OUT_STREAK_THRESHOLD;
 }
 
-/** Fewest games played first, then whoever joined earliest, then a
- * deterministic id-based tie-break so results are reproducible. */
+/** Fewest games played first, then queue position (earliest-joined, or
+ * bumped to the back — in shuffled order relative to whoever else just came
+ * off court together — the moment a player finishes a match; see
+ * `recordResult`), then a deterministic id-based tie-break so results are
+ * reproducible. */
 export function sortPlayersByPriority(players: Player[]): Player[] {
   return [...players].sort((a, b) => {
     if (a.gamesPlayed !== b.gamesPlayed) return a.gamesPlayed - b.gamesPlayed;
-    if (a.joinedAt !== b.joinedAt) return a.joinedAt - b.joinedAt;
+    if (a.queuePosition !== b.queuePosition) return a.queuePosition - b.queuePosition;
     return a.id.localeCompare(b.id);
   });
 }

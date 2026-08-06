@@ -27,6 +27,20 @@ const buildRevision = Date.now().toString();
 // basePath too, since that's the actual URL the browser requests.
 const routes = ["/", "/players/", "/history/", "/setup/"];
 
+// The manifest and icons are only linked from <head>, not part of any
+// webpack chunk, so (like the routes above) Next's build asset manifest
+// never sees them and Serwist won't precache them on its own — without
+// this they'd only get cached the first time a browser happens to request
+// them, instead of being guaranteed present the moment the service worker
+// finishes installing.
+const staticAssets = [
+  "/manifest.json",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+  "/icons/icon-512-maskable.png",
+  "/icons/apple-touch-icon.png",
+];
+
 const withSerwist = withSerwistInit({
   swSrc: "app/sw.ts",
   swDest: "public/sw.js",
@@ -42,8 +56,8 @@ const withSerwist = withSerwistInit({
   // reload loop. Not worth the risk for zero benefit here.
   reloadOnOnline: false,
   disable: process.env.NODE_ENV === "development",
-  additionalPrecacheEntries: routes.map((route) => ({
-    url: `${basePath}${route}`,
+  additionalPrecacheEntries: [...routes, ...staticAssets].map((path) => ({
+    url: `${basePath}${path}`,
     revision: buildRevision,
   })),
 });

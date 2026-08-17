@@ -2,7 +2,7 @@ import type { Match, Player, SessionState } from "@/lib/schemas";
 import { buildPairHistory } from "./pairHistory";
 import { getSchedulableUnits } from "./units";
 import { formBestDoublesSplit } from "./pairing";
-import { buildSitOut, isForcedPlay, isForcedRest, REST_REASON, sortPlayersByPriority, WAITING_REASON } from "./restRules";
+import { buildSitOut, computeStreakThreshold, isForcedPlay, isForcedRest, REST_REASON, sortPlayersByPriority, WAITING_REASON } from "./restRules";
 import type { MatchGenerationResult, Unit } from "./types";
 
 export interface GenerateMatchDeps {
@@ -50,8 +50,8 @@ function buildMatch(courtId: string, sequence: number, teamA: string[], teamB: s
   };
 }
 
-function reasonFor(player: Player): string {
-  return isForcedRest(player) ? REST_REASON : WAITING_REASON;
+function reasonFor(player: Player, threshold: number): string {
+  return isForcedRest(player, threshold) ? REST_REASON : WAITING_REASON;
 }
 
 /**
@@ -71,21 +71,25 @@ export function generateNextMatchForCourt(
   const busy = busyPlayerIds(state);
   const eligible = state.players.filter((p) => p.active && !busy.has(p.id));
   const history = buildPairHistory(state.matches);
+  const activePlayerCount = state.players.filter((p) => p.active).length;
+  const playersPerMatch = state.settings.format === "singles" ? 2 : 4;
+  const threshold = computeStreakThreshold(activePlayerCount, state.courts.length, playersPerMatch);
 
   if (state.settings.format === "singles") {
-    return generateSinglesMatch(courtId, sequence, eligible, now);
+    return generateSinglesMatch(courtId, sequence, eligible, threshold, now);
   }
-  return generateDoublesMatch(courtId, sequence, eligible, history, now);
+  return generateDoublesMatch(courtId, sequence, eligible, history, threshold, now);
 }
 
 function generateSinglesMatch(
   courtId: string,
   sequence: number,
   eligible: Player[],
+  threshold: number,
   now: () => number,
 ): MatchGenerationResult {
   const target = 2;
-  const { playing, resting } = splitByRest(eligible, target);
+  const { playing, resting } = splitByRest(eligible, target, threshold);
 
   if (playing.length < target) {
     return { match: null, restedSitOuts: [], restedPlayerIds: [] };
@@ -94,7 +98,7 @@ function generateSinglesMatch(
   const match = buildMatch(courtId, sequence, [playing[0].id], [playing[1].id], now);
   return {
     match,
-    restedSitOuts: resting.map((p) => buildSitOut(p, sequence, reasonFor(p))),
+    restedSitOuts: resting.map((p) => buildSitOut(p, sequence, reasonFor(p, threshold))),
     restedPlayerIds: resting.map((p) => p.id),
   };
 }
@@ -111,11 +115,11 @@ function generateSinglesMatch(
  * rest, while making forced play a hard guarantee (as long as it's
  * feasible to fit them all).
  */
-function splitByRest(eligible: Player[], target: number): { playing: Player[]; resting: Player[] } {
+function splitByRest(eligible: Player[], target: number, threshold: number): { playing: Player[]; resting: Player[] } {
   const sorted = sortPlayersByPriority(eligible);
-  const forcedPlay = sorted.filter(isForcedPlay);
-  const forcedRest = sorted.filter((p) => isForcedRest(p) && !isForcedPlay(p));
-  const normal = sorted.filter((p) => !isForcedPlay(p) && !isForcedRest(p));
+  const forcedPlay = sorted.filter((p) => isForcedPlay(p, threshold));
+  const forcedRest = sorted.filter((p) => isForcedRest(p, threshold) && !isForcedPlay(p, threshold));
+  const normal = sorted.filter((p) => !isForcedPlay(p, threshold) && !isForcedRest(p, threshold));
   const ordered = [...forcedPlay, ...normal, ...forcedRest];
 
   const playing = ordered.slice(0, target);
@@ -127,9 +131,9 @@ function splitByRest(eligible: Player[], target: number): { playing: Player[]; r
 /** Same idea as splitByRest but at the Unit level, so a linked pair rests
  * or plays together, and forced-play is guaranteed by slot count rather
  * than headcount. */
-function splitUnitsByRest(units: Unit[], playersById: Map<string, Player>, target: number): { playing: Unit[]; benched: Unit[] } {
-  const isForcedPlayUnit = (u: Unit) => u.playerIds.some((id) => isForcedPlay(playersById.get(id)!));
-  const isForcedRestUnit = (u: Unit) => u.playerIds.some((id) => isForcedRest(playersById.get(id)!));
+function splitUnitsByRest(units: Unit[], playersById: Map<string, Player>, target: number, threshold: number): { playing: Unit[]; benched: Unit[] } {
+  const isForcedPlayUnit = (u: Unit) => u.playerIds.some((id) => isForcedPlay(playersById.get(id)!, threshold));
+  const isForcedRestUnit = (u: Unit) => u.playerIds.some((id) => isForcedRest(playersById.get(id)!, threshold));
 
   const forcedPlay = units.filter(isForcedPlayUnit);
   const forcedPlaySlots = forcedPlay.reduce((sum, u) => sum + u.playerIds.length, 0);
@@ -158,6 +162,7 @@ function generateDoublesMatch(
   sequence: number,
   eligible: Player[],
   history: ReturnType<typeof buildPairHistory>,
+  threshold: number,
   now: () => number,
 ): MatchGenerationResult {
   const target = 4;
@@ -169,7 +174,7 @@ function generateDoublesMatch(
     return { match: null, restedSitOuts: [], restedPlayerIds: [] };
   }
 
-  const { playing, benched } = splitUnitsByRest(units, playersById, target);
+  const { playing, benched } = splitUnitsByRest(units, playersById, target, threshold);
 
   const { teamA, teamB } = formBestDoublesSplit(playing, history);
   const match = buildMatch(courtId, sequence, teamA, teamB, now);
@@ -177,7 +182,7 @@ function generateDoublesMatch(
   const restedPlayers = benched.flatMap((u) => u.playerIds.map((id) => playersById.get(id)!));
   return {
     match,
-    restedSitOuts: restedPlayers.map((p) => buildSitOut(p, sequence, reasonFor(p))),
+    restedSitOuts: restedPlayers.map((p) => buildSitOut(p, sequence, reasonFor(p, threshold))),
     restedPlayerIds: restedPlayers.map((p) => p.id),
   };
 }

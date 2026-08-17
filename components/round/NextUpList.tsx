@@ -1,7 +1,7 @@
 import { Armchair, Zap } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getSchedulableUnits } from "@/lib/engine/units";
-import { isForcedPlay, isForcedRest, REST_REASON } from "@/lib/engine/restRules";
+import { computeStreakThreshold, isForcedPlay, isForcedRest, REST_REASON } from "@/lib/engine/restRules";
 import { currentlyWaitingPlayers } from "@/lib/mutations/rounds";
 import type { SessionState } from "@/lib/schemas";
 
@@ -31,6 +31,9 @@ export function NextUpList({ state }: { state: SessionState }) {
   const waiting = currentlyWaitingPlayers(state);
   const units = getSchedulableUnits(waiting);
   const playersById = new Map(state.players.map((p) => [p.id, p]));
+  const activePlayerCount = state.players.filter((p) => p.active).length;
+  const playersPerMatch = state.settings.format === "singles" ? 2 : 4;
+  const threshold = computeStreakThreshold(activePlayerCount, state.courts.length, playersPerMatch);
 
   if (!state.players.some((p) => p.active)) return null;
 
@@ -45,11 +48,11 @@ export function NextUpList({ state }: { state: SessionState }) {
             const unitPlayers = unit.playerIds.map((id) => playersById.get(id));
             const resting = unit.playerIds.some((id) => {
               const p = playersById.get(id);
-              return p && isForcedRest(p);
+              return p && isForcedRest(p, threshold);
             });
             const guaranteed = unit.playerIds.some((id) => {
               const p = playersById.get(id);
-              return p && isForcedPlay(p);
+              return p && isForcedPlay(p, threshold);
             });
             return (
               <li

@@ -194,6 +194,76 @@ describe("generateNextMatchForCourt — doubles", () => {
     const sameTeam = result.match!.teamA.includes("a") ? result.match!.teamA : result.match!.teamB;
     expect(sameTeam).toContain("b");
   });
+
+  it("scales the sit-out guarantee up for a large pool on a single court — 2 misses isn't enough, 4 is", () => {
+    // 20 players, 1 doubles court -> 4 slots/cycle -> threshold = ceil(20/4) - 1 = 4.
+    const notYetOverdue = makePlayer({ gamesPlayed: 5, consecutiveSitOuts: 2, joinedAt: 99 });
+    const others = Array.from({ length: 19 }, () => makePlayer({ gamesPlayed: 0 }));
+    const state = baseState({
+      players: [notYetOverdue, ...others],
+      settings: { format: "doubles", courtCount: 1 },
+    });
+
+    const result = generateNextMatchForCourt(state, "c1");
+
+    const seated = [...result.match!.teamA, ...result.match!.teamB];
+    expect(seated).not.toContain(notYetOverdue.id);
+  });
+
+  it("scales the sit-out guarantee up for a large pool — 4 misses is enough", () => {
+    const overdue = makePlayer({ gamesPlayed: 5, consecutiveSitOuts: 4, joinedAt: 99 });
+    const others = Array.from({ length: 19 }, () => makePlayer({ gamesPlayed: 0 }));
+    const state = baseState({
+      players: [overdue, ...others],
+      settings: { format: "doubles", courtCount: 1 },
+    });
+
+    const result = generateNextMatchForCourt(state, "c1");
+
+    const seated = [...result.match!.teamA, ...result.match!.teamB];
+    expect(seated).toContain(overdue.id);
+  });
+
+  it("scales the sit-out guarantee down when courts are relatively plentiful — 1 miss is enough", () => {
+    // 12 players, 2 doubles courts -> 8 slots/cycle -> threshold = ceil(12/8) - 1 = 1.
+    const overdue = makePlayer({ gamesPlayed: 5, consecutiveSitOuts: 1, joinedAt: 99 });
+    const others = Array.from({ length: 11 }, () => makePlayer({ gamesPlayed: 0 }));
+    const busyMatch: Match = {
+      id: "busy",
+      roundNumber: 1,
+      courtId: "c2",
+      teamA: [others[0].id, others[1].id],
+      teamB: [others[2].id, others[3].id],
+      winner: null,
+      startedAt: null,
+      timestamp: 1,
+    };
+    const state = baseState({
+      players: [overdue, ...others],
+      courts: [{ id: "c1", name: "Court 1" }, { id: "c2", name: "Court 2" }],
+      matches: [busyMatch],
+      settings: { format: "doubles", courtCount: 2 },
+    });
+
+    const result = generateNextMatchForCourt(state, "c1");
+
+    const seated = [...result.match!.teamA, ...result.match!.teamB];
+    expect(seated).toContain(overdue.id);
+  });
+
+  it("scales the forced-rest threshold up for a large pool — a 2-game streak isn't forced to rest", () => {
+    const streaking = makePlayer({ consecutiveGames: 2, gamesPlayed: 0, joinedAt: 1 });
+    const others = Array.from({ length: 19 }, () => makePlayer({ gamesPlayed: 3 }));
+    const state = baseState({
+      players: [streaking, ...others],
+      settings: { format: "doubles", courtCount: 1 },
+    });
+
+    const result = generateNextMatchForCourt(state, "c1");
+
+    const seated = [...result.match!.teamA, ...result.match!.teamB];
+    expect(seated).toContain(streaking.id);
+  });
 });
 
 describe("generateNextMatchForCourt — singles", () => {

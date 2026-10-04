@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Player } from "@/lib/schemas";
 
+const byName = (a: Player, b: Player) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+
 export function PlayerSlotBox({
   player,
   swappable,
@@ -33,7 +35,7 @@ export function PlayerSlotBox({
             {candidates.length === 0 ? (
               <div className="px-2 py-1.5 text-xs text-muted-foreground">No one else available to swap</div>
             ) : (
-              candidates.map((c) => (
+              [...candidates].sort(byName).map((c) => (
                 <DropdownMenuItem key={c.id} onClick={() => onSwap(c.id)}>
                   Swap in {c.name}
                 </DropdownMenuItem>

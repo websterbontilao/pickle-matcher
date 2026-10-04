@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,16 +10,29 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { useEditPlayer } from "@/lib/hooks/usePlayerMutations";
 import { usePlayers } from "@/lib/hooks/useSessionState";
 import { isNameTaken } from "@/lib/utils/names";
 import type { Player } from "@/lib/schemas";
 
-export function EditPlayerDialog({ player }: { player: Player }) {
-  const [open, setOpen] = useState(false);
+/** Opened from the player's actions menu. */
+export function EditPlayerDialog({
+  player,
+  open,
+  onOpenChange,
+}: {
+  player: Player;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const [name, setName] = useState(player.name);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    // Reset the field each time the dialog opens.
+    setWasOpen(open);
+    if (open) setName(player.name);
+  }
   const editPlayer = useEditPlayer();
   const players = usePlayers();
 
@@ -31,20 +43,11 @@ export function EditPlayerDialog({ player }: { player: Player }) {
     e.preventDefault();
     if (!trimmed || duplicate) return;
     editPlayer.mutate({ id: player.id, name: trimmed });
-    setOpen(false);
+    onOpenChange(false);
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) setName(player.name);
-      }}
-    >
-      <DialogTrigger render={<Button variant="ghost" size="icon" className="size-7" />}>
-        <Pencil className="size-3.5" />
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <form onSubmit={handleSubmit}>
           <DialogHeader>

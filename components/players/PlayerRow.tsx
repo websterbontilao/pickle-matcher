@@ -1,12 +1,10 @@
 import { CircleDot } from "lucide-react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { EditPlayerDialog } from "./EditPlayerDialog";
-import { RemovePlayerConfirmDialog } from "./RemovePlayerConfirmDialog";
-import { LinkPlayerControl } from "./LinkPlayerControl";
+import { PlayerActionsMenu } from "./PlayerActionsMenu";
 import { SkillRatingPicker } from "./SkillRatingPicker";
 import { record, totalPlayTimeMs, winRate } from "@/lib/utils/stats";
-import { formatTotalDuration } from "@/lib/utils/duration";
+import { formatTimeOfDay, formatTotalDuration } from "@/lib/utils/duration";
 import type { Match, Player } from "@/lib/schemas";
 
 export function PlayerRow({
@@ -46,17 +44,17 @@ export function PlayerRow({
           )}
         </div>
       </TableCell>
+      <TableCell className="py-1.5 text-right tabular-nums text-muted-foreground">{player.gamesPlayed}</TableCell>
       <TableCell className="py-1.5 text-right tabular-nums text-muted-foreground">{record(player)}</TableCell>
       <TableCell className="py-1.5 text-right tabular-nums text-muted-foreground">{winRate(player)}</TableCell>
       <TableCell className="py-1.5 text-right tabular-nums text-muted-foreground">
         {formatTotalDuration(totalPlayTimeMs(player.id, matches))}
       </TableCell>
-      <TableCell className="py-1.5">
-        <div className="flex items-center justify-end gap-0.5">
-          {player.active && <LinkPlayerControl player={player} allPlayers={allPlayers} />}
-          {player.active && <EditPlayerDialog player={player} />}
-          {player.active && <RemovePlayerConfirmDialog player={player} disabled={isPlaying} />}
-        </div>
+      <TableCell className="py-1.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">
+        {formatTimeOfDay(player.joinedAt)}
+      </TableCell>
+      <TableCell className="py-1.5 text-right">
+        {player.active && <PlayerActionsMenu player={player} allPlayers={allPlayers} isPlaying={isPlaying} />}
       </TableCell>
     </TableRow>
   );

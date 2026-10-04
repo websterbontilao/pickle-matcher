@@ -18,3 +18,9 @@ export function formatTotalDuration(ms: number): string {
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
 }
+
+/** "7:42 PM" (in the device's locale) — when something happened today,
+ * e.g. when a player was added to the session. */
+export function formatTimeOfDay(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}

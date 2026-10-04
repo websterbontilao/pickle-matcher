@@ -1,7 +1,8 @@
 import type { Match, Player, SessionState } from "@/lib/schemas";
-import { busyPlayerIds, generateNextMatchForCourt } from "@/lib/engine/generateNextMatch";
+import { busyPlayerIds, generateNextMatchForCourt, nextUpQueue } from "@/lib/engine/generateNextMatch";
+import { rankedGames } from "@/lib/engine/restRules";
 
-export { busyPlayerIds };
+export { busyPlayerIds, nextUpQueue };
 
 /** The latest match generated for a specific court (by sequence number),
  * or undefined if that court has never had one. Courts advance
@@ -18,14 +19,6 @@ export function currentMatchForCourt(state: SessionState, courtId: string): Matc
  * timer. */
 export function isMatchSwappable(match: Match): boolean {
   return match.startedAt === null;
-}
-
-/** Active players not currently assigned to any in-progress-or-pending
- * match anywhere — i.e. the live "waiting" pool, whether they're waiting
- * because of a forced rest or simply because every court is occupied. */
-export function currentlyWaitingPlayers(state: SessionState): Player[] {
-  const busy = busyPlayerIds(state);
-  return state.players.filter((p) => p.active && !busy.has(p.id));
 }
 
 /** Every decided match, most recently finished first. Includes matches
@@ -195,7 +188,26 @@ export function recordResult(state: SessionState, input: RecordResultInput, deps
     m.id === input.matchId ? { ...m, winner: input.winner, timestamp: Date.now() } : m,
   );
 
-  return { ...state, players, matches };
+  return { ...state, players: graduateNewcomers(players, [...winningTeam, ...losingTeam]), matches };
+}
+
+/** A newcomer's first recorded match uses up their priority: they stop
+ * being a newcomer and get just enough catch-up credit that their ranked
+ * games equal the field's lowest — every active non-newcomer, including
+ * matchmates who just finished alongside them — so they rejoin the normal
+ * queue level with everyone else rather than keeping fewest-games priority
+ * until they've caught up. Unplayed newcomers are excluded from that floor
+ * so they can't drag it to zero. */
+function graduateNewcomers(players: Player[], finishedIds: string[]): Player[] {
+  const graduating = new Set(players.filter((p) => p.newcomer && finishedIds.includes(p.id)).map((p) => p.id));
+  if (graduating.size === 0) return players;
+
+  const field = players.filter((p) => p.active && !p.newcomer);
+  const floor = field.length > 0 ? Math.min(...field.map(rankedGames)) : 0;
+
+  return players.map((p) =>
+    graduating.has(p.id) ? { ...p, newcomer: false, gamesCredit: Math.max(0, floor - p.gamesPlayed) } : p,
+  );
 }
 
 /** Sends a batch of just-finished players to the back of the priority

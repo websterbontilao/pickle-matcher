@@ -9,7 +9,9 @@ export interface AddPlayersInput {
 
 /** Bulk add — one player per non-empty name, skipping blanks and anything
  * that collides (case-insensitively) with an existing player or an earlier
- * name in the same batch, rather than rejecting the whole submission. */
+ * name in the same batch, rather than rejecting the whole submission.
+ * Anyone added after the session has started is a newcomer (priority for
+ * their first match only). */
 export function addPlayers(state: SessionState, input: AddPlayersInput): SessionState {
   const now = Date.now();
   const newPlayers: Player[] = [];
@@ -30,6 +32,8 @@ export function addPlayers(state: SessionState, input: AddPlayersInput): Session
       losses: 0,
       consecutiveGames: 0,
       consecutiveSitOuts: 0,
+      newcomer: state.sessionStarted,
+      gamesCredit: 0,
     });
   });
 

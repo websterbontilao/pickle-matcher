@@ -25,6 +25,15 @@ export const PlayerSchema = z.object({
    * guarantee them a spot once it hits the threshold, even if normal
    * priority (or a tie-break) would otherwise pass them over again. */
   consecutiveSitOuts: z.number().int().nonnegative().default(0),
+  /** True for a player added after the session started who hasn't had a
+   * match recorded yet — they jump the whole queue (ahead even of forced
+   * play) for exactly one match. Cleared by `recordResult`. */
+  newcomer: z.boolean().default(false),
+  /** Hidden games count added to `gamesPlayed` for queue ranking only (see
+   * `rankedGames`), never shown in stats. Set once, when a newcomer's first
+   * match is recorded, so they land level with the field instead of keeping
+   * fewest-games priority until they've caught up. */
+  gamesCredit: z.number().int().nonnegative().default(0),
 });
 
 export type Player = z.infer<typeof PlayerSchema>;

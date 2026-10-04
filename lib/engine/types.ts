@@ -5,8 +5,19 @@ import type { Match, SitOut } from "@/lib/schemas";
  * engine actually assigns to teams, so linked pairs never get split up. */
 export interface Unit {
   playerIds: string[];
-  gamesPlayed: number;
+  /** Summed `rankedGames` of the unit's players — real games plus any
+   * catch-up credit. */
+  rankedGames: number;
   queuePosition: number;
+  /** True if any player in the unit is still a newcomer. */
+  newcomer: boolean;
+}
+
+/** Which band of the queue a unit falls in, front to back. */
+export type QueueTier = "newcomer" | "guaranteed" | "normal" | "resting";
+
+export interface RankedUnit extends Unit {
+  tier: QueueTier;
 }
 
 export interface MatchGenerationResult {

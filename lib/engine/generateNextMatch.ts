@@ -1,9 +1,9 @@
 import type { Match, Player, SessionState } from "@/lib/schemas";
 import { buildPairHistory } from "./pairHistory";
-import { getSchedulableUnits } from "./units";
+import { getSchedulableUnits, getSoloUnits, rankUnits } from "./units";
 import { formBestDoublesSplit } from "./pairing";
-import { buildSitOut, computeStreakThreshold, isForcedPlay, isForcedRest, REST_REASON, sortPlayersByPriority, WAITING_REASON } from "./restRules";
-import type { MatchGenerationResult, Unit } from "./types";
+import { buildSitOut, computeStreakThreshold, isForcedRest, REST_REASON, WAITING_REASON } from "./restRules";
+import type { MatchGenerationResult, RankedUnit, Unit } from "./types";
 
 export interface GenerateMatchDeps {
   now?: () => number;
@@ -54,6 +54,25 @@ function reasonFor(player: Player, threshold: number): string {
   return isForcedRest(player, threshold) ? REST_REASON : WAITING_REASON;
 }
 
+function streakThreshold(state: SessionState): number {
+  const activePlayerCount = state.players.filter((p) => p.active).length;
+  const playersPerMatch = state.settings.format === "singles" ? 2 : 4;
+  return computeStreakThreshold(activePlayerCount, state.courts.length, playersPerMatch);
+}
+
+/** Everyone free to be seated right now (active and not in any undecided
+ * current match), grouped into units for the session's format and in the
+ * exact order the scheduler will consider them — newcomers, then forced
+ * play, then normal priority, then forced rest. This is what the Next Up
+ * preview renders, so it always matches what actually happens. */
+export function nextUpQueue(state: SessionState): RankedUnit[] {
+  const busy = busyPlayerIds(state);
+  const eligible = state.players.filter((p) => p.active && !busy.has(p.id));
+  const units = state.settings.format === "singles" ? getSoloUnits(eligible) : getSchedulableUnits(eligible);
+  const playersById = new Map(eligible.map((p) => [p.id, p]));
+  return rankUnits(units, playersById, streakThreshold(state));
+}
+
 /**
  * Pure, per-court match generation: given the current state and a specific
  * court, decides whether enough free (active, not currently playing
@@ -68,115 +87,21 @@ export function generateNextMatchForCourt(
 ): MatchGenerationResult {
   const now = deps.now ?? Date.now;
   const sequence = state.matchSequence + 1;
-  const busy = busyPlayerIds(state);
-  const eligible = state.players.filter((p) => p.active && !busy.has(p.id));
-  const history = buildPairHistory(state.matches);
-  const activePlayerCount = state.players.filter((p) => p.active).length;
-  const playersPerMatch = state.settings.format === "singles" ? 2 : 4;
-  const threshold = computeStreakThreshold(activePlayerCount, state.courts.length, playersPerMatch);
-
-  if (state.settings.format === "singles") {
-    return generateSinglesMatch(courtId, sequence, eligible, threshold, now);
-  }
-  return generateDoublesMatch(courtId, sequence, eligible, history, threshold, now);
-}
-
-function generateSinglesMatch(
-  courtId: string,
-  sequence: number,
-  eligible: Player[],
-  threshold: number,
-  now: () => number,
-): MatchGenerationResult {
-  const target = 2;
-  const { playing, resting } = splitByRest(eligible, target, threshold);
-
-  if (playing.length < target) {
-    return { match: null, restedSitOuts: [], restedPlayerIds: [] };
-  }
-
-  const match = buildMatch(courtId, sequence, [playing[0].id], [playing[1].id], now);
-  return {
-    match,
-    restedSitOuts: resting.map((p) => buildSitOut(p, sequence, reasonFor(p, threshold))),
-    restedPlayerIds: resting.map((p) => p.id),
-  };
-}
-
-/**
- * Splits `eligible` (already priority-sorted candidates) into who plays
- * this cycle and who rests. Reorders the priority list so anyone on a
- * forced-play streak (sat out too many cycles in a row) comes first —
- * guaranteed a spot — anyone on a forced-rest streak (played too many in a
- * row) comes last — only included if there's no one else to fill the
- * match — and everyone else keeps their normal games-played priority in
- * between. Taking the front `target` off this reordered list then
- * naturally reproduces the existing soft-fallback behavior for forced
- * rest, while making forced play a hard guarantee (as long as it's
- * feasible to fit them all).
- */
-function splitByRest(eligible: Player[], target: number, threshold: number): { playing: Player[]; resting: Player[] } {
-  const sorted = sortPlayersByPriority(eligible);
-  const forcedPlay = sorted.filter((p) => isForcedPlay(p, threshold));
-  const forcedRest = sorted.filter((p) => isForcedRest(p, threshold) && !isForcedPlay(p, threshold));
-  const normal = sorted.filter((p) => !isForcedPlay(p, threshold) && !isForcedRest(p, threshold));
-  const ordered = [...forcedPlay, ...normal, ...forcedRest];
-
-  const playing = ordered.slice(0, target);
-  const playingIds = new Set(playing.map((p) => p.id));
-  const resting = sorted.filter((p) => !playingIds.has(p.id));
-  return { playing, resting };
-}
-
-/** Same idea as splitByRest but at the Unit level, so a linked pair rests
- * or plays together, and forced-play is guaranteed by slot count rather
- * than headcount. */
-function splitUnitsByRest(units: Unit[], playersById: Map<string, Player>, target: number, threshold: number): { playing: Unit[]; benched: Unit[] } {
-  const isForcedPlayUnit = (u: Unit) => u.playerIds.some((id) => isForcedPlay(playersById.get(id)!, threshold));
-  const isForcedRestUnit = (u: Unit) => u.playerIds.some((id) => isForcedRest(playersById.get(id)!, threshold));
-
-  const forcedPlay = units.filter(isForcedPlayUnit);
-  const forcedPlaySlots = forcedPlay.reduce((sum, u) => sum + u.playerIds.length, 0);
-
-  if (forcedPlaySlots >= target) {
-    // Rare: the guarantee-play group alone already fills (or overflows)
-    // the match. Fall back to the normal exact-fit selection, scoped to
-    // just that pool.
-    return selectPlayingUnits(forcedPlay, target);
-  }
-
-  const remainder = units.filter((u) => !forcedPlay.includes(u));
-  const forcedRestRemainder = remainder.filter(isForcedRestUnit);
-  const normalRemainder = remainder.filter((u) => !isForcedRestUnit(u));
-  const remainingTarget = target - forcedPlaySlots;
-  const normalSlots = normalRemainder.reduce((sum, u) => sum + u.playerIds.length, 0);
-  const pool = normalSlots >= remainingTarget ? normalRemainder : remainder;
-
-  const { playing: morePlaying, benched } = selectPlayingUnits(pool, remainingTarget);
-  const allBenched = normalSlots >= remainingTarget ? [...benched, ...forcedRestRemainder] : benched;
-  return { playing: [...forcedPlay, ...morePlaying], benched: allBenched };
-}
-
-function generateDoublesMatch(
-  courtId: string,
-  sequence: number,
-  eligible: Player[],
-  history: ReturnType<typeof buildPairHistory>,
-  threshold: number,
-  now: () => number,
-): MatchGenerationResult {
-  const target = 4;
-  const playersById = new Map(eligible.map((p) => [p.id, p]));
-  const units = getSchedulableUnits(eligible);
-  const totalSlots = units.reduce((sum, u) => sum + u.playerIds.length, 0);
+  const playersById = new Map(state.players.map((p) => [p.id, p]));
+  const queue = nextUpQueue(state);
+  const threshold = streakThreshold(state);
+  const target = state.settings.format === "singles" ? 2 : 4;
+  const totalSlots = queue.reduce((sum, u) => sum + u.playerIds.length, 0);
 
   if (totalSlots < target) {
     return { match: null, restedSitOuts: [], restedPlayerIds: [] };
   }
 
-  const { playing, benched } = splitUnitsByRest(units, playersById, target, threshold);
-
-  const { teamA, teamB } = formBestDoublesSplit(playing, history);
+  const { playing, benched } = splitUnitsByRest(queue, target);
+  const { teamA, teamB } =
+    state.settings.format === "singles"
+      ? { teamA: playing[0].playerIds, teamB: playing[1].playerIds }
+      : formBestDoublesSplit(playing, buildPairHistory(state.matches));
   const match = buildMatch(courtId, sequence, teamA, teamB, now);
 
   const restedPlayers = benched.flatMap((u) => u.playerIds.map((id) => playersById.get(id)!));
@@ -185,6 +110,36 @@ function generateDoublesMatch(
     restedSitOuts: restedPlayers.map((p) => buildSitOut(p, sequence, reasonFor(p, threshold))),
     restedPlayerIds: restedPlayers.map((p) => p.id),
   };
+}
+
+/** Splits the ranked queue into who plays this cycle and who sits out.
+ * Newcomer and forced-play units are guaranteed a spot (newcomers first if
+ * they can't all fit); forced-rest units only play if there aren't enough
+ * normal-tier players to fill the match. Works at the Unit level, so a
+ * linked pair rests or plays together, and the guarantee is by slot count
+ * rather than headcount. */
+function splitUnitsByRest(queue: RankedUnit[], target: number): { playing: Unit[]; benched: Unit[] } {
+  const guaranteed = queue.filter((u) => u.tier === "newcomer" || u.tier === "guaranteed");
+  const guaranteedSlots = guaranteed.reduce((sum, u) => sum + u.playerIds.length, 0);
+
+  if (guaranteedSlots >= target) {
+    // Rare: the guaranteed group alone already fills (or overflows) the
+    // match. Fall back to the normal exact-fit selection, scoped to just
+    // that pool — its ordering keeps newcomers ahead.
+    const { playing, benched } = selectPlayingUnits(guaranteed, target);
+    return { playing, benched: [...benched, ...queue.filter((u) => !guaranteed.includes(u))] };
+  }
+
+  const remainder = queue.filter((u) => !guaranteed.includes(u));
+  const restingRemainder = remainder.filter((u) => u.tier === "resting");
+  const normalRemainder = remainder.filter((u) => u.tier !== "resting");
+  const remainingTarget = target - guaranteedSlots;
+  const normalSlots = normalRemainder.reduce((sum, u) => sum + u.playerIds.length, 0);
+  const pool = normalSlots >= remainingTarget ? normalRemainder : remainder;
+
+  const { playing: morePlaying, benched } = selectPlayingUnits(pool, remainingTarget);
+  const allBenched = normalSlots >= remainingTarget ? [...benched, ...restingRemainder] : benched;
+  return { playing: [...guaranteed, ...morePlaying], benched: allBenched };
 }
 
 /**

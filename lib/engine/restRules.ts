@@ -28,17 +28,11 @@ export function isForcedPlay(player: Player, threshold: number): boolean {
   return player.consecutiveSitOuts >= threshold;
 }
 
-/** Fewest games played first, then queue position (earliest-joined, or
- * bumped to the back — in shuffled order relative to whoever else just came
- * off court together — the moment a player finishes a match; see
- * `recordResult`), then a deterministic id-based tie-break so results are
- * reproducible. */
-export function sortPlayersByPriority(players: Player[]): Player[] {
-  return [...players].sort((a, b) => {
-    if (a.gamesPlayed !== b.gamesPlayed) return a.gamesPlayed - b.gamesPlayed;
-    if (a.queuePosition !== b.queuePosition) return a.queuePosition - b.queuePosition;
-    return a.id.localeCompare(b.id);
-  });
+/** The games count used for queue ranking: real games played plus any
+ * catch-up credit a late joiner was given after their first match. Never
+ * use this for displayed stats. */
+export function rankedGames(player: Player): number {
+  return player.gamesPlayed + player.gamesCredit;
 }
 
 export function buildSitOut(player: Player, round: number, reason: string): SitOut {

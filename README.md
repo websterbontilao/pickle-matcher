@@ -7,7 +7,9 @@ A courtside PWA for running pickleball round-robin sessions — no server, no ac
 - **Independent per-court play** — each court starts, times, and advances its own matches; no waiting on a synchronized "round."
 - **Singles or doubles**, chosen once per session. Doubles is always a clean 2v2 — nobody plays 1v2.
 - **Linked players** always end up as teammates when both are active, and can be swapped or team-switched before a match starts.
-- **Fair rotation** — priority goes to whoever's played the fewest games, with two built-in guardrails: a forced rest after 2 games in a row, and a guaranteed spot after sitting out 2 cycles in a row.
+- **Fair rotation** — priority goes to whoever's played the fewest games, with two built-in guardrails: a forced rest after too many games in a row, and a guaranteed spot after sitting out too many cycles in a row (both scale with players vs. court capacity).
+- **Late arrivals** — a player who joins mid-session goes straight to the front for their first match, then slots into the normal rotation level with everyone else (no marathon catch-up run).
+- **Next Up** — shows the exact order the scheduler will seat people in.
 - **Match history** and per-player stats (record, win %, time played) — all derived from the match log, nothing tracked separately.
 - **Installable and offline-capable** — add it to your home screen and it works with no signal at the courts.
 - **Dark mode**, and everything persisted locally — close the tab, reopen later, pick up where you left off.

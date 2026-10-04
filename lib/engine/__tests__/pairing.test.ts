@@ -5,7 +5,7 @@ import type { Unit } from "@/lib/engine/types";
 import type { Match } from "@/lib/schemas";
 
 function unit(...playerIds: string[]): Unit {
-  return { playerIds, gamesPlayed: 0, queuePosition: 0 };
+  return { playerIds, rankedGames: 0, queuePosition: 0, newcomer: false };
 }
 
 describe("formBestDoublesSplit", () => {

@@ -16,6 +16,8 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
     losses: 0,
     consecutiveGames: 0,
     consecutiveSitOuts: 0,
+    newcomer: false,
+    gamesCredit: 0,
     ...overrides,
   };
 }

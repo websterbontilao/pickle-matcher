@@ -1,5 +1,6 @@
 import { CourtList } from "@/components/setup/CourtList";
 import { FormatToggle } from "@/components/setup/FormatToggle";
+import { ResultEntryToggle } from "@/components/setup/ResultEntryToggle";
 
 export default function SetupPage() {
   return (
@@ -8,6 +9,7 @@ export default function SetupPage() {
         <h1 className="text-sm font-semibold">Setup</h1>
       </div>
       <FormatToggle />
+      <ResultEntryToggle />
       <CourtList />
     </div>
   );

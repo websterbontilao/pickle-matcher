@@ -163,9 +163,22 @@ export function swapPlayerInMatch(state: SessionState, input: SwapPlayerInput): 
   return { ...state, matches, players };
 }
 
-export interface RecordResultInput {
-  matchId: string;
-  winner: "A" | "B";
+export interface MatchScore {
+  a: number;
+  b: number;
+}
+
+/** Either the winning side, or both sides' scores (the higher one wins).
+ * A tied or invalid score is rejected. */
+export type RecordResultInput = { matchId: string } & ({ winner: "A" | "B"; score?: never } | { score: MatchScore; winner?: never });
+
+/** The winning side and the score to store, or null if the input can't
+ * decide a winner (a tie, or a negative/fractional score). */
+function resolveResult(input: RecordResultInput): { winner: "A" | "B"; score: MatchScore | undefined } | null {
+  if (!input.score) return { winner: input.winner!, score: undefined };
+  const { a, b } = input.score;
+  if (![a, b].every((n) => Number.isInteger(n) && n >= 0) || a === b) return null;
+  return { winner: a > b ? "A" : "B", score: { a, b } };
 }
 
 export interface RecordResultDeps {
@@ -174,10 +187,12 @@ export interface RecordResultDeps {
 
 export function recordResult(state: SessionState, input: RecordResultInput, deps: RecordResultDeps = {}): SessionState {
   const match = state.matches.find((m) => m.id === input.matchId);
-  if (!match || match.startedAt === null || match.winner !== null) return state;
+  const result = resolveResult(input);
+  if (!match || !result || match.startedAt === null || match.winner !== null) return state;
 
-  const winningTeam = input.winner === "A" ? match.teamA : match.teamB;
-  const losingTeam = input.winner === "A" ? match.teamB : match.teamA;
+  const { winner, score } = result;
+  const winningTeam = winner === "A" ? match.teamA : match.teamB;
+  const losingTeam = winner === "A" ? match.teamB : match.teamA;
   const queuePositions = queueBackPositions(state.players, [...winningTeam, ...losingTeam], deps.random ?? Math.random);
 
   const players = state.players.map((p) => {
@@ -191,7 +206,7 @@ export function recordResult(state: SessionState, input: RecordResultInput, deps
   });
 
   const matches = state.matches.map((m) =>
-    m.id === input.matchId ? { ...m, winner: input.winner, timestamp: Date.now() } : m,
+    m.id === input.matchId ? { ...m, winner, score, timestamp: Date.now() } : m,
   );
 
   return { ...state, players: graduateNewcomers(players, [...winningTeam, ...losingTeam]), matches };
@@ -257,7 +272,7 @@ function revertMatchResult(state: SessionState, match: Match): SessionState {
     return p;
   });
 
-  const matches = state.matches.map((m) => (m.id === match.id ? { ...m, winner: null } : m));
+  const matches = state.matches.map((m) => (m.id === match.id ? { ...m, winner: null, score: undefined } : m));
 
   return { ...state, players, matches };
 }
@@ -265,9 +280,19 @@ function revertMatchResult(state: SessionState, match: Match): SessionState {
 /** Changes an already-decided match to a different winner — reverts the
  * previous winner's stats, then records the new one. No-ops if the match
  * isn't decided yet (use recordResult for that) or the winner is unchanged. */
+/** Corrects a recorded result. Picking the other winner reverses the old
+ * result's stats and clears any score (it would contradict the new
+ * winner). A corrected score with the same winner just updates the score —
+ * stats and queue stay as they are; one that flips the winner is a full
+ * correction. */
 export function changeResult(state: SessionState, input: RecordResultInput): SessionState {
   const match = state.matches.find((m) => m.id === input.matchId);
-  if (!match || match.winner === null || match.winner === input.winner) return state;
+  const result = resolveResult(input);
+  if (!match || !result || match.winner === null) return state;
 
+  if (result.winner === match.winner) {
+    if (!result.score || (match.score?.a === result.score.a && match.score?.b === result.score.b)) return state;
+    return { ...state, matches: state.matches.map((m) => (m.id === match.id ? { ...m, score: result.score } : m)) };
+  }
   return recordResult(revertMatchResult(state, match), input);
 }

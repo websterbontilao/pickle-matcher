@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,14 +14,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Play, Trophy } from "lucide-react";
+import { ClipboardPen, Play, Trophy } from "lucide-react";
 import type { Court, Match, Player } from "@/lib/schemas";
-import { isMatchSwappable } from "@/lib/mutations/rounds";
+import { isMatchSwappable, type MatchScore } from "@/lib/mutations/rounds";
 import { useChangeResult, useRecordResult, useStartMatch } from "@/lib/hooks/useRoundMutations";
 import { PlayerSlotBox } from "./PlayerSlotBox";
 import { CourtTimer } from "./CourtTimer";
 import { CourtDiagram } from "./CourtDiagram";
 import { UnevenNote } from "./UnevenNote";
+import { ScoreDialog } from "./ScoreDialog";
 
 function playerOf(id: string, players: Player[]): Player | undefined {
   return players.find((p) => p.id === id);
@@ -87,18 +89,62 @@ function WinnerButton({
   );
 }
 
+/** Score-mode result control: one big "Enter score" button for a live
+ * match, or the recorded score with a way to correct it. */
+function ScoreControls({ match, players, onSave }: { match: Match; players: Player[]; onSave: (score: MatchScore) => void }) {
+  const [open, setOpen] = useState(false);
+  const decided = match.winner !== null;
+  return (
+    <>
+      {decided ? (
+        <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
+          <span className="text-sm tabular-nums">
+            {match.score ? (
+              <>
+                <span className={cn(match.winner === "A" && "font-semibold")}>{match.score.a}</span>
+                {" – "}
+                <span className={cn(match.winner === "B" && "font-semibold")}>{match.score.b}</span>
+              </>
+            ) : (
+              <span className="text-muted-foreground">No score recorded</span>
+            )}
+          </span>
+          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+            {match.score ? "Correct score" : "Add score"}
+          </Button>
+        </div>
+      ) : (
+        <Button className="min-h-14 w-full gap-1.5 text-base font-semibold" onClick={() => setOpen(true)}>
+          <ClipboardPen className="size-4" />
+          Enter score
+        </Button>
+      )}
+      <ScoreDialog
+        open={open}
+        onOpenChange={setOpen}
+        teamALabel={teamLabel(match.teamA, players)}
+        teamBLabel={teamLabel(match.teamB, players)}
+        initial={match.score}
+        onSave={onSave}
+      />
+    </>
+  );
+}
+
 export function CourtCard({
   court,
   match,
   players,
   swapCandidates,
   onSwap,
+  resultEntry,
 }: {
   court: Court;
   match: Match | undefined;
   players: Player[];
   swapCandidates: Player[];
   onSwap: (matchId: string, outPlayerId: string, inPlayerId: string) => void;
+  resultEntry: "winner" | "score";
 }) {
   const startMatch = useStartMatch();
   const recordResult = useRecordResult();
@@ -120,6 +166,12 @@ export function CourtCard({
     if (!match) return;
     if (decided) changeResult.mutate({ matchId: match.id, winner });
     else recordResult.mutate({ matchId: match.id, winner });
+  }
+
+  function handleScore(score: MatchScore) {
+    if (!match) return;
+    if (decided) changeResult.mutate({ matchId: match.id, score });
+    else recordResult.mutate({ matchId: match.id, score });
   }
 
   function swapSlot(id: string, side: "A" | "B") {
@@ -175,20 +227,24 @@ export function CourtCard({
             teamBHighlighted={match.winner === "B"}
           />
           {!decided && <UnevenNote match={match} players={players} />}
-          <div className="grid grid-cols-2 gap-2">
-            <WinnerButton
-              label={teamLabel(match.teamA, players)}
-              isWinner={match.winner === "A"}
-              decided={decided}
-              onConfirm={() => handleConfirm("A")}
-            />
-            <WinnerButton
-              label={teamLabel(match.teamB, players)}
-              isWinner={match.winner === "B"}
-              decided={decided}
-              onConfirm={() => handleConfirm("B")}
-            />
-          </div>
+          {resultEntry === "score" ? (
+            <ScoreControls match={match} players={players} onSave={handleScore} />
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <WinnerButton
+                label={teamLabel(match.teamA, players)}
+                isWinner={match.winner === "A"}
+                decided={decided}
+                onConfirm={() => handleConfirm("A")}
+              />
+              <WinnerButton
+                label={teamLabel(match.teamB, players)}
+                isWinner={match.winner === "B"}
+                decided={decided}
+                onConfirm={() => handleConfirm("B")}
+              />
+            </div>
+          )}
           {decided && (
             <p className="mt-1.5 text-xs text-muted-foreground">Waiting for enough players for the next match</p>
           )}

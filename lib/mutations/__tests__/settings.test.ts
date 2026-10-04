@@ -28,7 +28,7 @@ function baseState(overrides: Partial<SessionState> = {}): SessionState {
   return {
     ...EMPTY_SESSION_STATE,
     courts: [{ id: "c1", name: "Court 1" }],
-    settings: { format: "doubles", courtCount: 1 },
+    settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
     ...overrides,
   };
 }

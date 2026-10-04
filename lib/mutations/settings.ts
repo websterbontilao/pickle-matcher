@@ -50,3 +50,14 @@ export function setFormat(state: SessionState, input: SetFormatInput): SessionSt
   if (state.settings.format === input.format) return state;
   return { ...state, settings: { ...state.settings, format: input.format }, plannedMatches: [] };
 }
+
+export interface SetResultEntryInput {
+  resultEntry: "winner" | "score";
+}
+
+/** Not locked by the session starting — it only changes how results are
+ * recorded from now on, never any match already decided. */
+export function setResultEntry(state: SessionState, input: SetResultEntryInput): SessionState {
+  if (state.settings.resultEntry === input.resultEntry) return state;
+  return { ...state, settings: { ...state.settings, resultEntry: input.resultEntry } };
+}

@@ -80,6 +80,7 @@ export function RoundView() {
                 onSwap={(matchId, outPlayerId, inPlayerId) =>
                   swapPlayerInMatch.mutate({ matchId, outPlayerId, inPlayerId })
                 }
+                resultEntry={state.settings.resultEntry}
               />
             );
           })}

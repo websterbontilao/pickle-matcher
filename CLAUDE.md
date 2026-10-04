@@ -78,6 +78,10 @@ Courts run **independently** — there is no global "round" that synchronizes al
 
 `lib/mutations/rounds.ts::matchHistory(state)` returns every decided match (`winner !== null`), sorted by timestamp with `roundNumber` (a monotonic sequence, not a synchronized round number) as a tiebreak for matches decided in the same millisecond. This is a pure historical view — it deliberately does not care whether a match is still any court's "current" one.
 
+### Recording results: winner or score
+
+`settings.resultEntry` (`"winner"` default | `"score"`, set on Setup, never locked) only changes the Round tab's result control. `recordResult`/`changeResult` take either `{ winner }` or `{ score: { a, b } }`; a score derives the winner (higher wins) and ties/invalid scores are rejected. Correcting a score without flipping the winner only updates `match.score` (stats and queue untouched); picking the other winner clears the score so the two can't contradict. `match.score` is optional — absent for picked winners and pre-score history.
+
 ### PWA / offline (`app/sw.ts`, `next.config.ts`)
 
 - Serwist, via `@serwist/next`. Service worker is **disabled in development** (`disable: process.env.NODE_ENV === "development"`) — this is intentional (avoids stale-cache dev confusion), not a bug. Test offline/install behavior against `npm run build && npm start`, never `npm run dev`.

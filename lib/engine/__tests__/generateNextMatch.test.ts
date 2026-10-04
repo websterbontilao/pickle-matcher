@@ -35,7 +35,7 @@ function baseState(overrides: Partial<SessionState> = {}): SessionState {
 describe("generateNextMatchForCourt — doubles", () => {
   it("forms exactly one 2v2 match from the highest-priority free players", () => {
     const players = Array.from({ length: 8 }, () => makePlayer());
-    const state = baseState({ players, settings: { format: "doubles", courtCount: 1 } });
+    const state = baseState({ players, settings: { format: "doubles", courtCount: 1, resultEntry: "winner" } });
 
     const result = generateNextMatchForCourt(state, "c1");
 
@@ -61,7 +61,7 @@ describe("generateNextMatchForCourt — doubles", () => {
     const state = baseState({
       players,
       matches: [busyMatch],
-      settings: { format: "doubles", courtCount: 1 },
+      settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
     });
 
     const result = generateNextMatchForCourt(state, "c1");
@@ -74,7 +74,7 @@ describe("generateNextMatchForCourt — doubles", () => {
 
   it("returns no match when fewer than 4 free players are available", () => {
     const players = Array.from({ length: 3 }, () => makePlayer());
-    const state = baseState({ players, settings: { format: "doubles", courtCount: 1 } });
+    const state = baseState({ players, settings: { format: "doubles", courtCount: 1, resultEntry: "winner" } });
 
     const result = generateNextMatchForCourt(state, "c1");
 
@@ -90,7 +90,7 @@ describe("generateNextMatchForCourt — doubles", () => {
     const d = makePlayer({ id: "d", linkedPlayerId: "c", joinedAt: 3 });
     const state = baseState({
       players: [single, a, b, c, d],
-      settings: { format: "doubles", courtCount: 1 },
+      settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
     });
 
     const result = generateNextMatchForCourt(state, "c1");
@@ -106,7 +106,7 @@ describe("generateNextMatchForCourt — doubles", () => {
     const others = Array.from({ length: 4 }, () => makePlayer({ gamesPlayed: 3 }));
     const state = baseState({
       players: [rested, ...others],
-      settings: { format: "doubles", courtCount: 1 },
+      settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
     });
 
     const result = generateNextMatchForCourt(state, "c1");
@@ -136,7 +136,7 @@ describe("generateNextMatchForCourt — doubles", () => {
     const state = baseState({
       players: [a, b, c, d],
       matches: [priorMatch],
-      settings: { format: "doubles", courtCount: 1 },
+      settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
     });
 
     const result = generateNextMatchForCourt(state, "c1");
@@ -154,7 +154,7 @@ describe("generateNextMatchForCourt — doubles", () => {
     const others = Array.from({ length: 3 }, () => makePlayer());
     const state = baseState({
       players: [rested, ...others],
-      settings: { format: "doubles", courtCount: 1 },
+      settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
     });
 
     const result = generateNextMatchForCourt(state, "c1");
@@ -171,7 +171,7 @@ describe("generateNextMatchForCourt — doubles", () => {
     const others = Array.from({ length: 5 }, () => makePlayer({ gamesPlayed: 0 }));
     const state = baseState({
       players: [overdue, ...others],
-      settings: { format: "doubles", courtCount: 1 },
+      settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
     });
 
     const result = generateNextMatchForCourt(state, "c1");
@@ -186,7 +186,7 @@ describe("generateNextMatchForCourt — doubles", () => {
     const others = Array.from({ length: 4 }, () => makePlayer({ gamesPlayed: 0 }));
     const state = baseState({
       players: [a, b, ...others],
-      settings: { format: "doubles", courtCount: 1 },
+      settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
     });
 
     const result = generateNextMatchForCourt(state, "c1");
@@ -204,7 +204,7 @@ describe("generateNextMatchForCourt — doubles", () => {
     const others = Array.from({ length: 19 }, () => makePlayer({ gamesPlayed: 0 }));
     const state = baseState({
       players: [notYetOverdue, ...others],
-      settings: { format: "doubles", courtCount: 1 },
+      settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
     });
 
     const result = generateNextMatchForCourt(state, "c1");
@@ -218,7 +218,7 @@ describe("generateNextMatchForCourt — doubles", () => {
     const others = Array.from({ length: 19 }, () => makePlayer({ gamesPlayed: 0 }));
     const state = baseState({
       players: [overdue, ...others],
-      settings: { format: "doubles", courtCount: 1 },
+      settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
     });
 
     const result = generateNextMatchForCourt(state, "c1");
@@ -245,7 +245,7 @@ describe("generateNextMatchForCourt — doubles", () => {
       players: [overdue, ...others],
       courts: [{ id: "c1", name: "Court 1" }, { id: "c2", name: "Court 2" }],
       matches: [busyMatch],
-      settings: { format: "doubles", courtCount: 2 },
+      settings: { format: "doubles", courtCount: 2, resultEntry: "winner" },
     });
 
     const result = generateNextMatchForCourt(state, "c1");
@@ -259,7 +259,7 @@ describe("generateNextMatchForCourt — doubles", () => {
     const others = Array.from({ length: 19 }, () => makePlayer({ gamesPlayed: 3 }));
     const state = baseState({
       players: [streaking, ...others],
-      settings: { format: "doubles", courtCount: 1 },
+      settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
     });
 
     const result = generateNextMatchForCourt(state, "c1");
@@ -272,7 +272,7 @@ describe("generateNextMatchForCourt — doubles", () => {
 describe("generateNextMatchForCourt — singles", () => {
   it("forms exactly one 1v1 match from the two highest-priority free players", () => {
     const players = Array.from({ length: 4 }, () => makePlayer());
-    const state = baseState({ players, settings: { format: "singles", courtCount: 1 } });
+    const state = baseState({ players, settings: { format: "singles", courtCount: 1, resultEntry: "winner" } });
 
     const result = generateNextMatchForCourt(state, "c1");
 
@@ -282,7 +282,7 @@ describe("generateNextMatchForCourt — singles", () => {
 
   it("returns no match when fewer than 2 free players are available", () => {
     const players = [makePlayer()];
-    const state = baseState({ players, settings: { format: "singles", courtCount: 1 } });
+    const state = baseState({ players, settings: { format: "singles", courtCount: 1, resultEntry: "winner" } });
 
     const result = generateNextMatchForCourt(state, "c1");
 
@@ -292,7 +292,7 @@ describe("generateNextMatchForCourt — singles", () => {
   it("force-rests whoever has a 2-game streak", () => {
     const rested = makePlayer({ consecutiveGames: 2, joinedAt: 1 });
     const others = Array.from({ length: 3 }, () => makePlayer({ gamesPlayed: 3 }));
-    const state = baseState({ players: [rested, ...others], settings: { format: "singles", courtCount: 1 } });
+    const state = baseState({ players: [rested, ...others], settings: { format: "singles", courtCount: 1, resultEntry: "winner" } });
 
     const result = generateNextMatchForCourt(state, "c1");
 
@@ -303,7 +303,7 @@ describe("generateNextMatchForCourt — singles", () => {
   it("guarantees a spot for anyone who has sat out 2 cycles in a row, even over a tie-break", () => {
     const overdue = makePlayer({ gamesPlayed: 5, consecutiveSitOuts: 2 });
     const others = Array.from({ length: 3 }, () => makePlayer({ gamesPlayed: 0 }));
-    const state = baseState({ players: [overdue, ...others], settings: { format: "singles", courtCount: 1 } });
+    const state = baseState({ players: [overdue, ...others], settings: { format: "singles", courtCount: 1, resultEntry: "winner" } });
 
     const result = generateNextMatchForCourt(state, "c1");
 

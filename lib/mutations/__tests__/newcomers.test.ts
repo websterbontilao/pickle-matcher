@@ -45,7 +45,7 @@ function baseState(overrides: Partial<SessionState> = {}): SessionState {
   return {
     ...EMPTY_SESSION_STATE,
     courts: ONE_COURT,
-    settings: { format: "doubles", courtCount: 1 },
+    settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
     sessionStarted: true,
     ...overrides,
   };
@@ -236,7 +236,7 @@ describe("nextUpQueue", () => {
   });
 
   it("treats every player as their own entry in singles, even if linked", () => {
-    let state = baseState({ players: regulars(4), settings: { format: "singles", courtCount: 1 } });
+    let state = baseState({ players: regulars(4), settings: { format: "singles", courtCount: 1, resultEntry: "winner" } });
     state = linkPlayers(state, { aId: "r1", bId: "r2" });
     expect(nextUpQueue(state).every((u) => u.playerIds.length === 1)).toBe(true);
   });
@@ -263,7 +263,7 @@ describe("scheduling stays correct across swaps", () => {
   });
 
   it("cross-court swap between two pending matches: both play out and the next matches follow priority", () => {
-    let state = fillOpenCourts(baseState({ players: regulars(12), courts: TWO_COURTS, settings: { format: "doubles", courtCount: 2 } }));
+    let state = fillOpenCourts(baseState({ players: regulars(12), courts: TWO_COURTS, settings: { format: "doubles", courtCount: 2, resultEntry: "winner" } }));
     const m1 = currentMatchForCourt(state, "c1")!;
     const m2 = currentMatchForCourt(state, "c2")!;
     const x = m1.teamA[0];
@@ -322,7 +322,7 @@ describe("scheduling stays correct across swaps", () => {
   });
 
   it("a newcomer swapped in by hand graduates once that match is recorded", () => {
-    let state = fillOpenCourts(baseState({ players: regulars(8, { gamesPlayed: 2 }), courts: TWO_COURTS, settings: { format: "doubles", courtCount: 2 } }));
+    let state = fillOpenCourts(baseState({ players: regulars(8, { gamesPlayed: 2 }), courts: TWO_COURTS, settings: { format: "doubles", courtCount: 2, resultEntry: "winner" } }));
     // Both courts full; Nina arrives and the organiser puts her straight in.
     state = addPlayers(state, { names: ["Nina"] });
     const ninaId = player(state, "Nina").id;
@@ -342,7 +342,7 @@ describe("scheduling stays correct across swaps", () => {
   it("random swaps over many cycles never double-book, always form 2v2, keep newcomers first, and rebalance games once swapping stops", () => {
     const rand = mulberry32(42);
     const pick = <T,>(xs: T[]): T => xs[Math.floor(rand() * xs.length)];
-    let state = fillOpenCourts(baseState({ players: regulars(11), courts: TWO_COURTS, settings: { format: "doubles", courtCount: 2 } }));
+    let state = fillOpenCourts(baseState({ players: regulars(11), courts: TWO_COURTS, settings: { format: "doubles", courtCount: 2, resultEntry: "winner" } }));
     let newcomerCount = 0;
 
     // 200 cycles with random manual swaps (and a newcomer arriving every

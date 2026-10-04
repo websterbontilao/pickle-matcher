@@ -38,7 +38,7 @@ function setupState(players: Player[], overrides: Partial<SessionState> = {}): S
   return {
     ...EMPTY_SESSION_STATE,
     courts: [{ id: "c1", name: "Court 1" }],
-    settings: { format: "doubles", courtCount: 1 },
+    settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
     players,
     ...overrides,
   };
@@ -220,7 +220,7 @@ describe("changing a rating", () => {
   });
 
   it("leaves seated matches alone in singles — there are no teams to rebalance", () => {
-    let state = fillOpenCourts(startSession(setupState(rated([2, 2, 2]), { settings: { format: "singles", courtCount: 1 } })));
+    let state = fillOpenCourts(startSession(setupState(rated([2, 2, 2]), { settings: { format: "singles", courtCount: 1, resultEntry: "winner" } })));
     const m = currentMatchForCourt(state, "c1")!;
     state = setSkillRating(state, { id: m.teamA[0], skillRating: 4 });
     expect(currentMatchForCourt(state, "c1")).toEqual(m);

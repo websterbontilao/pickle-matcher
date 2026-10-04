@@ -48,7 +48,7 @@ function setupState(players: Player[], overrides: Partial<SessionState> = {}): S
   return {
     ...EMPTY_SESSION_STATE,
     courts: ONE_COURT,
-    settings: { format: "doubles", courtCount: 1 },
+    settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
     players,
     ...overrides,
   };

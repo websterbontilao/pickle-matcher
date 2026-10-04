@@ -17,6 +17,9 @@ export const MatchSchema = z.object({
    * result is recorded/changed. Used with startedAt to compute a decided
    * match's final duration. */
   timestamp: z.number(),
+  /** Points per side, when the result was recorded by score. Absent when
+   * the winner was simply picked (or for matches from before scores). */
+  score: z.object({ a: z.number().int().nonnegative(), b: z.number().int().nonnegative() }).optional(),
 });
 
 export type Match = z.infer<typeof MatchSchema>;

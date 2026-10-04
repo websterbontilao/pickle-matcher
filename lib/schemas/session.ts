@@ -33,7 +33,7 @@ export const EMPTY_SESSION_STATE: SessionState = {
   players: [],
   courts: [{ id: "court-1", name: "Court 1" }],
   matches: [],
-  settings: { format: "doubles", courtCount: 1 },
+  settings: { format: "doubles", courtCount: 1, resultEntry: "winner" },
   sitOuts: [],
   matchSequence: 0,
   sessionStarted: false,

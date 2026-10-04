@@ -43,7 +43,10 @@ export interface SetFormatInput {
   format: "singles" | "doubles";
 }
 
+/** Clears any planned matches when the format actually changes — a
+ * doubles lineup can't be seated as singles, or vice versa. */
 export function setFormat(state: SessionState, input: SetFormatInput): SessionState {
   if (hasSessionStarted(state)) return state;
-  return { ...state, settings: { ...state.settings, format: input.format } };
+  if (state.settings.format === input.format) return state;
+  return { ...state, settings: { ...state.settings, format: input.format }, plannedMatches: [] };
 }

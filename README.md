@@ -10,6 +10,7 @@ A courtside PWA for running pickleball round-robin sessions — no server, no ac
 - **Fair rotation** — priority goes to whoever's played the fewest games, with two built-in guardrails: a forced rest after too many games in a row, and a guaranteed spot after sitting out too many cycles in a row (both scale with players vs. court capacity).
 - **Late arrivals** — a player who joins mid-session goes straight to the front for their first match, then slots into the normal rotation level with everyone else (no marathon catch-up run).
 - **Next Up** — shows the exact order the scheduler will seat people in.
+- **Upcoming** — a forecast of the next 5 matches, previewable before the session starts. Swap players in it to lock matches in as planned; plans are seated first, with a warning if they override a fairness rule.
 - **Match history** and per-player stats (record, win %, time played) — all derived from the match log, nothing tracked separately.
 - **Installable and offline-capable** — add it to your home screen and it works with no signal at the courts.
 - **Dark mode**, and everything persisted locally — close the tab, reopen later, pick up where you left off.

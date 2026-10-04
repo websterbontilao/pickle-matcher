@@ -1,6 +1,7 @@
 import type { Match, Player, SessionState } from "@/lib/schemas";
 import { busyPlayerIds, generateNextMatchForCourt, nextUpQueue } from "@/lib/engine/generateNextMatch";
 import { rankedGames } from "@/lib/engine/restRules";
+import type { MatchGenerationResult } from "@/lib/engine/types";
 
 export { busyPlayerIds, nextUpQueue };
 
@@ -44,34 +45,39 @@ export function fillOpenCourts(state: SessionState, deps: { now?: () => number }
   if (!state.sessionStarted) return state;
 
   let next = state;
-  let changed = false;
-
   for (const court of next.courts) {
     const current = currentMatchForCourt(next, court.id);
     if (current && current.winner === null) continue;
 
     const result = generateNextMatchForCourt(next, court.id, deps);
-    if (!result.match) continue;
-
-    const restedIds = new Set(result.restedPlayerIds);
-    const playingIds = new Set([...result.match.teamA, ...result.match.teamB]);
-    next = {
-      ...next,
-      matches: [...next.matches, result.match],
-      sitOuts: [...next.sitOuts, ...result.restedSitOuts],
-      matchSequence: next.matchSequence + 1,
-      players: next.players.map((p) => {
-        if (restedIds.has(p.id)) {
-          return { ...p, consecutiveGames: 0, consecutiveSitOuts: p.consecutiveSitOuts + 1 };
-        }
-        if (playingIds.has(p.id)) return { ...p, consecutiveSitOuts: 0 };
-        return p;
-      }),
-    };
-    changed = true;
+    if (result.match) next = applyGeneratedMatch(next, result);
   }
+  return next;
+}
 
-  return changed ? next : state;
+/** Folds one generated match into state: seats it, logs the sit-outs,
+ * updates both streak counters, and consumes the planned match it came
+ * from (if any). Shared by `fillOpenCourts` and the forecast simulation. */
+export function applyGeneratedMatch(state: SessionState, result: MatchGenerationResult): SessionState {
+  if (!result.match) return state;
+  const restedIds = new Set(result.restedPlayerIds);
+  const playingIds = new Set([...result.match.teamA, ...result.match.teamB]);
+  return {
+    ...state,
+    matches: [...state.matches, result.match],
+    sitOuts: [...state.sitOuts, ...result.restedSitOuts],
+    matchSequence: state.matchSequence + 1,
+    plannedMatches: result.plannedMatchId
+      ? state.plannedMatches.filter((m) => m.id !== result.plannedMatchId)
+      : state.plannedMatches,
+    players: state.players.map((p) => {
+      if (restedIds.has(p.id)) {
+        return { ...p, consecutiveGames: 0, consecutiveSitOuts: p.consecutiveSitOuts + 1 };
+      }
+      if (playingIds.has(p.id)) return { ...p, consecutiveSitOuts: 0 };
+      return p;
+    }),
+  };
 }
 
 export interface StartMatchInput {

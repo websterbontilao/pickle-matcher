@@ -1,9 +1,9 @@
-import type { Match, Player, SessionState } from "@/lib/schemas";
+import type { Match, PlannedMatch, Player, SessionState } from "@/lib/schemas";
 import { buildPairHistory } from "./pairHistory";
 import { getSchedulableUnits, getSoloUnits, rankUnits } from "./units";
 import { formBestDoublesSplit } from "./pairing";
 import { buildSitOut, computeStreakThreshold, isForcedRest, REST_REASON, WAITING_REASON } from "./restRules";
-import type { MatchGenerationResult, RankedUnit, Unit } from "./types";
+import type { MatchGenerationResult, RankedUnit, RuleConflict, Unit } from "./types";
 
 export interface GenerateMatchDeps {
   now?: () => number;
@@ -79,6 +79,7 @@ export function nextUpQueue(state: SessionState): RankedUnit[] {
  * elsewhere) players exist to seat a new match there, and if so, builds it.
  * Courts advance independently — this never looks at what any other court
  * is doing beyond who they're currently holding onto (via busyPlayerIds).
+ * A planned match, if any, is seated before anything is calculated.
  */
 export function generateNextMatchForCourt(
   state: SessionState,
@@ -87,6 +88,9 @@ export function generateNextMatchForCourt(
 ): MatchGenerationResult {
   const now = deps.now ?? Date.now;
   const sequence = state.matchSequence + 1;
+  if (state.plannedMatches.length > 0) {
+    return generatePlannedMatch(state, state.plannedMatches[0], courtId, sequence, now);
+  }
   const playersById = new Map(state.players.map((p) => [p.id, p]));
   const queue = nextUpQueue(state);
   const threshold = streakThreshold(state);
@@ -110,6 +114,73 @@ export function generateNextMatchForCourt(
     restedSitOuts: restedPlayers.map((p) => buildSitOut(p, sequence, reasonFor(p, threshold))),
     restedPlayerIds: restedPlayers.map((p) => p.id),
   };
+}
+
+/**
+ * Seats the next planned match as locked in, overriding newcomer priority
+ * and fairness rules (conflicts with the latter are reported, not
+ * enforced). Any planned player who isn't free right now — gone inactive,
+ * or seated elsewhere — has their slot refilled from the front of the
+ * queue, preferring players not committed to a later plan; the rest of
+ * the plan stands. Returns no match if there aren't enough free players
+ * to fill it at all.
+ */
+function generatePlannedMatch(
+  state: SessionState,
+  plan: PlannedMatch,
+  courtId: string,
+  sequence: number,
+  now: () => number,
+): MatchGenerationResult {
+  const playersById = new Map(state.players.map((p) => [p.id, p]));
+  const threshold = streakThreshold(state);
+  const queue = nextUpQueue(state);
+  const free = new Set(queue.flatMap((u) => u.playerIds));
+  const planIds = new Set([...plan.teamA, ...plan.teamB]);
+  const laterPlanIds = new Set(state.plannedMatches.slice(1).flatMap((m) => [...m.teamA, ...m.teamB]));
+
+  const refillOrder = queue.flatMap((u) => u.playerIds).filter((id) => !planIds.has(id));
+  const refills = [
+    ...refillOrder.filter((id) => !laterPlanIds.has(id)),
+    ...refillOrder.filter((id) => laterPlanIds.has(id)),
+  ];
+  const fill = (id: string) => (free.has(id) ? id : refills.shift());
+  const teamA = plan.teamA.map(fill);
+  const teamB = plan.teamB.map(fill);
+  if ([...teamA, ...teamB].some((id) => id === undefined)) {
+    return { match: null, restedSitOuts: [], restedPlayerIds: [] };
+  }
+
+  const match = buildMatch(courtId, sequence, teamA as string[], teamB as string[], now);
+  const playingIds = new Set([...match.teamA, ...match.teamB]);
+  const restedPlayers = [...free].filter((id) => !playingIds.has(id)).map((id) => playersById.get(id)!);
+  const target = state.settings.format === "singles" ? 2 : 4;
+
+  return {
+    match,
+    restedSitOuts: restedPlayers.map((p) => buildSitOut(p, sequence, reasonFor(p, threshold))),
+    restedPlayerIds: restedPlayers.map((p) => p.id),
+    plannedMatchId: plan.id,
+    // Newcomer priority isn't a fairness rule (a newcomer stuck behind
+    // plans gets its own notice), so judge against the pick without them.
+    ruleConflicts: ruleConflicts(queue, splitUnitsByRest(queue.filter((u) => !u.newcomer), target).playing, playingIds),
+  };
+}
+
+/** Fairness rules a hand-picked lineup goes against, judged against what
+ * the scheduler would have picked itself — so a resting player it would
+ * have seated anyway isn't flagged: a resting player seated in place of
+ * someone the scheduler preferred, or a guaranteed player the scheduler
+ * would have seated but the plan leaves out. */
+function ruleConflicts(queue: RankedUnit[], schedulerPick: Unit[], playingIds: Set<string>): RuleConflict[] {
+  const picked = new Set(schedulerPick.flatMap((u) => u.playerIds));
+  return queue.flatMap((u) =>
+    u.playerIds.flatMap((id): RuleConflict[] => {
+      if (u.tier === "resting" && playingIds.has(id) && !picked.has(id)) return [{ playerId: id, rule: "resting" }];
+      if (u.tier === "guaranteed" && !playingIds.has(id) && picked.has(id)) return [{ playerId: id, rule: "guaranteed" }];
+      return [];
+    }),
+  );
 }
 
 /** Splits the ranked queue into who plays this cycle and who sits out.

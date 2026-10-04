@@ -6,7 +6,17 @@
 
 **Queue** — the waiting order for the next open court spot. Ranked by fewest games played (adjusted for any *catch-up credit*), then by time in line. Finishing a match sends a player to the back of the line.
 
-**Next Up** — the on-screen preview of the queue: who is waiting, in the exact order the scheduler will pick them.
+**Next Up** — the on-screen preview of the queue: who is waiting, in the exact order the scheduler will pick them — players locked into planned matches first, in plan order.
+
+**Forecast** — the projected sequence of the next matches *after* the ones already seated on courts, shown on the Upcoming tab. A best guess, not a commitment: real results, court finishing order, and the reshuffle of players who finish together can all change it. Available before the session starts as a preview of the opening matches.
+_Avoid_: Queue (that's the player waiting order), Schedule
+
+**Likely** (forecast match) — made up entirely of players waiting right now who don't first play an earlier forecast match; only a swap, join, or departure changes it.
+
+**Tentative** (forecast match) — depends on who finishes a current match, and when.
+
+**Planned match** — a forecast match the organizer has locked in by swapping players in it. Swapping in match N locks every forecast match up to and including N, so nothing ahead of the edit can rearrange itself around it. When a court opens, planned matches are seated first, in order — ahead of newcomers and fairness rules (the organizer's call wins; rule conflicts are warned about, never blocked). If a planned player becomes unavailable, their spot is refilled from the queue and the rest of the plan stands.
+_Avoid_: Reservation, pinned match
 
 **Newcomer** — a player added *after* the session has started who hasn't played a match yet. Gets top priority for exactly one match, then joins the normal queue. Players added during setup are never newcomers.
 

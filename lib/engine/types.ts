@@ -30,4 +30,18 @@ export interface MatchGenerationResult {
   /** Player ids whose consecutiveGames streak should reset to 0 because
    * they're sitting this cycle out. */
   restedPlayerIds: string[];
+  /** Set when the match came from a planned match, which the caller must
+   * now remove from `plannedMatches`. */
+  plannedMatchId?: string;
+  /** Where a planned match overrides a fairness rule. Never blocks —
+   * surfaced as a warning on the Upcoming tab. */
+  ruleConflicts?: RuleConflict[];
+}
+
+/** A planned match going against a fairness rule: seating someone due a
+ * forced rest while a non-resting player waits, or leaving out someone
+ * guaranteed a spot while a non-guaranteed player plays. */
+export interface RuleConflict {
+  playerId: string;
+  rule: "resting" | "guaranteed";
 }

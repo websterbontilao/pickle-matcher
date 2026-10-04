@@ -25,7 +25,7 @@ const buildRevision = Date.now().toString();
 // "<route>/index.html", served at "<route>/" — precache entries must match
 // exactly, and (when deployed under a GitHub Pages subpath) must include
 // basePath too, since that's the actual URL the browser requests.
-const routes = ["/", "/players/", "/history/", "/setup/"];
+const routes = ["/", "/upcoming/", "/players/", "/history/", "/setup/"];
 
 // The manifest and icons are only linked from <head>, not part of any
 // webpack chunk, so (like the routes above) Next's build asset manifest

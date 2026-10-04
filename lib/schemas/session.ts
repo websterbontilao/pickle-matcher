@@ -4,6 +4,7 @@ import { CourtSchema } from "./court";
 import { MatchSchema } from "./match";
 import { SessionSettingsSchema } from "./settings";
 import { SitOutSchema } from "./sitOut";
+import { PlannedMatchSchema } from "./plannedMatch";
 
 export const SessionStateSchema = z.object({
   players: z.array(PlayerSchema),
@@ -21,6 +22,9 @@ export const SessionStateSchema = z.object({
    * matches — without this, adding players/courts during Setup would
    * otherwise silently "start" the session as a side effect. */
   sessionStarted: z.boolean().default(false),
+  /** Forecast matches the organizer has locked in, in the order they'll be
+   * seated. Always a prefix of the forecast: courts seat these first. */
+  plannedMatches: z.array(PlannedMatchSchema).default([]),
 });
 
 export type SessionState = z.infer<typeof SessionStateSchema>;
@@ -33,4 +37,5 @@ export const EMPTY_SESSION_STATE: SessionState = {
   sitOuts: [],
   matchSequence: 0,
   sessionStarted: false,
+  plannedMatches: [],
 };

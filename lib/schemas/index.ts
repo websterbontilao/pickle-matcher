@@ -4,3 +4,4 @@ export * from "./match";
 export * from "./settings";
 export * from "./sitOut";
 export * from "./session";
+export * from "./plannedMatch";

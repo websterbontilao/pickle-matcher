@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PlayerSlotBox } from "@/components/round/PlayerSlotBox";
+import { UnevenNote } from "@/components/round/UnevenNote";
 import { useSessionState } from "@/lib/hooks/useSessionState";
 import { useClearPlannedMatches, useSwapInForecast, useUnlockPlannedMatch } from "@/lib/hooks/useForecastMutations";
 import { forecast, swapInForecast, type ForecastConfidence, type ForecastMatch } from "@/lib/mutations/forecast";
@@ -86,6 +87,8 @@ function ForecastCard({
         <span className="text-xs text-muted-foreground">vs</span>
         <div className="space-y-1.5">{match.teamB.map((id) => slot(id, match.teamB))}</div>
       </div>
+
+      <UnevenNote match={match} players={state.players} />
 
       {match.ruleConflicts.length > 0 && (
         <ul className="mt-2 space-y-0.5">

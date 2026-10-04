@@ -4,11 +4,13 @@ import {
   editPlayer,
   linkPlayers,
   removePlayer,
+  setSkillRating,
   unlinkPlayers,
   type AddPlayersInput,
   type EditPlayerInput,
   type LinkPlayersInput,
   type RemovePlayerInput,
+  type SetSkillRatingInput,
   type UnlinkPlayersInput,
 } from "@/lib/mutations/players";
 
@@ -17,3 +19,4 @@ export const useEditPlayer = () => useSessionMutation<EditPlayerInput>(editPlaye
 export const useRemovePlayer = () => useSessionMutation<RemovePlayerInput>(removePlayer);
 export const useLinkPlayers = () => useSessionMutation<LinkPlayersInput>(linkPlayers);
 export const useUnlinkPlayers = () => useSessionMutation<UnlinkPlayersInput>(unlinkPlayers);
+export const useSetSkillRating = () => useSessionMutation<SetSkillRatingInput>(setSkillRating);

@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+export const SKILL_RATING_MIN = 2;
+export const SKILL_RATING_MAX = 6;
+export const SKILL_RATING_STEP = 0.5;
+export const SKILL_RATING_DEFAULT = 2;
+
 export const PlayerSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
@@ -34,6 +39,15 @@ export const PlayerSchema = z.object({
    * match is recorded, so they land level with the field instead of keeping
    * fewest-games priority until they've caught up. */
   gamesCredit: z.number().int().nonnegative().default(0),
+  /** How strong the player is, in half steps. Only used to split the
+   * already-chosen players into balanced teams — never to decide who plays
+   * or when. */
+  skillRating: z
+    .number()
+    .min(SKILL_RATING_MIN)
+    .max(SKILL_RATING_MAX)
+    .multipleOf(SKILL_RATING_STEP)
+    .default(SKILL_RATING_DEFAULT),
 });
 
 export type Player = z.infer<typeof PlayerSchema>;

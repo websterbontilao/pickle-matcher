@@ -1,6 +1,7 @@
 import { pairKey } from "./pairKey";
 import type { Unit } from "./types";
 import type { PairHistory } from "./pairHistory";
+import { ratingGap, withinTolerance, type RatingOf } from "./balance";
 
 export function flattenTeam(team: Unit[]): string[] {
   return team.flatMap((u) => u.playerIds);
@@ -55,28 +56,41 @@ function enumerateSplits(units: Unit[]): { teamA: Unit[]; teamB: Unit[] }[] {
 }
 
 /**
- * Chooses how to split 4 selected units into teamA/teamB by scrambling
- * against history: among every structurally-valid split (linked pairs
- * always kept whole), picks whichever minimizes repeat partnerships
- * (same two people teamed up again) plus repeat matchups (these two teams
- * facing each other again). This is what makes unlinked players actually
- * get reshuffled with fresh partners/opponents over time instead of
- * settling into the same groupings.
+ * Chooses how to split 4 selected units into teamA/teamB. Balance comes
+ * first: only splits whose average-rating gap is within BALANCE_TOLERANCE
+ * of the fairest one are considered. Among those, it scrambles against
+ * history — whichever minimizes repeat partnerships (same two people
+ * teamed up again) plus repeat matchups (these two teams facing each other
+ * again) — so unlinked players keep getting fresh partners/opponents
+ * instead of settling into the same groupings. Linked pairs always stay
+ * whole. With equal ratings (e.g. everyone at the default) every split is
+ * equally balanced and this is pure variety. Never changes *who* plays.
  */
-export function formBestDoublesSplit(units: Unit[], history: PairHistory): { teamA: string[]; teamB: string[] } {
-  const splits = enumerateSplits(units);
+export function formBestDoublesSplit(
+  units: Unit[],
+  history: PairHistory,
+  ratingOf: RatingOf = () => 0,
+): { teamA: string[]; teamB: string[] } {
+  const splits = enumerateSplits(units).map((split) => {
+    const teamA = flattenTeam(split.teamA);
+    const teamB = flattenTeam(split.teamB);
+    return {
+      teamA,
+      teamB,
+      gap: ratingGap(teamA, teamB, ratingOf),
+      variety: partnerScore(teamA, history) + partnerScore(teamB, history) + opponentScore(teamA, teamB, history),
+    };
+  });
 
+  const bestGap = Math.min(...splits.map((s) => s.gap));
   let best = splits[0];
   let bestScore = Infinity;
-  for (const split of splits) {
-    const teamAIds = flattenTeam(split.teamA);
-    const teamBIds = flattenTeam(split.teamB);
-    const score = partnerScore(teamAIds, history) + partnerScore(teamBIds, history) + opponentScore(teamAIds, teamBIds, history);
-    if (score < bestScore) {
-      bestScore = score;
+  for (const split of splits.filter((s) => withinTolerance(s.gap, bestGap))) {
+    if (split.variety < bestScore) {
+      bestScore = split.variety;
       best = split;
     }
   }
 
-  return { teamA: flattenTeam(best.teamA), teamB: flattenTeam(best.teamB) };
+  return { teamA: best.teamA, teamB: best.teamB };
 }

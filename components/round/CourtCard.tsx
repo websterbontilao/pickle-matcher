@@ -20,6 +20,7 @@ import { useChangeResult, useRecordResult, useStartMatch } from "@/lib/hooks/use
 import { PlayerSlotBox } from "./PlayerSlotBox";
 import { CourtTimer } from "./CourtTimer";
 import { CourtDiagram } from "./CourtDiagram";
+import { UnevenNote } from "./UnevenNote";
 
 function playerOf(id: string, players: Player[]): Player | undefined {
   return players.find((p) => p.id === id);
@@ -155,6 +156,7 @@ export function CourtCard({
             teamASlots={match.teamA.map((id) => swapSlot(id, "A"))}
             teamBSlots={match.teamB.map((id) => swapSlot(id, "B"))}
           />
+          <UnevenNote match={match} players={players} />
           <Button size="sm" className="w-full gap-1.5" onClick={() => startMatch.mutate({ matchId: match.id })}>
             <Play className="size-3.5" />
             Start match
@@ -172,6 +174,7 @@ export function CourtCard({
             teamAHighlighted={match.winner === "A"}
             teamBHighlighted={match.winner === "B"}
           />
+          {!decided && <UnevenNote match={match} players={players} />}
           <div className="grid grid-cols-2 gap-2">
             <WinnerButton
               label={teamLabel(match.teamA, players)}

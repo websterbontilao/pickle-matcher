@@ -6,6 +6,7 @@ A courtside PWA for running pickleball round-robin sessions — no server, no ac
 
 - **Independent per-court play** — each court starts, times, and advances its own matches; no waiting on a synchronized "round."
 - **Singles or doubles**, chosen once per session. Doubles is always a clean 2v2 — nobody plays 1v2.
+- **Balanced teams** — give players a skill rating (2.0–6.0) on the Players list and teams are split so averages are as close as possible; uneven matches are flagged. Ratings never change who plays next.
 - **Linked players** always end up as teammates when both are active, and can be swapped or team-switched before a match starts.
 - **Fair rotation** — priority goes to whoever's played the fewest games, with two built-in guardrails: a forced rest after too many games in a row, and a guaranteed spot after sitting out too many cycles in a row (both scale with players vs. court capacity).
 - **Late arrivals** — a player who joins mid-session goes straight to the front for their first match, then slots into the normal rotation level with everyone else (no marathon catch-up run).

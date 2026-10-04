@@ -18,6 +18,11 @@ _Avoid_: Queue (that's the player waiting order), Schedule
 **Planned match** — a forecast match the organizer has locked in by swapping players in it. Swapping in match N locks every forecast match up to and including N, so nothing ahead of the edit can rearrange itself around it. When a court opens, planned matches are seated first, in order — ahead of newcomers and fairness rules (the organizer's call wins; rule conflicts are warned about, never blocked). If a planned player becomes unavailable, their spot is refilled from the queue and the rest of the plan stands.
 _Avoid_: Reservation, pinned match
 
+**Skill rating** — how strong a player is, from 2.0 to 6.0 in half steps (default 2.0). Used only to split already-chosen players into balanced teams; it never decides *who* plays or when.
+_Avoid_: Ranking (that's queue order), Level
+
+**Uneven match** — a match whose teams' average skill ratings (or, in singles, the two players' ratings) differ by 0.5 or more. Flagged to the organizer, never blocked.
+
 **Newcomer** — a player added *after* the session has started who hasn't played a match yet. Gets top priority for exactly one match, then joins the normal queue. Players added during setup are never newcomers.
 
 **Catch-up credit** — a hidden games count given to a newcomer when their first match is recorded, setting their queue standing level with the lowest-ranked active non-newcomer at that moment, so they don't keep "fewest games" priority until they catch up. Never shown in stats; displayed games played is always the real count.

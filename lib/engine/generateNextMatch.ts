@@ -2,6 +2,7 @@ import type { Match, PlannedMatch, Player, SessionState } from "@/lib/schemas";
 import { buildPairHistory } from "./pairHistory";
 import { getSchedulableUnits, getSoloUnits, rankUnits } from "./units";
 import { formBestDoublesSplit } from "./pairing";
+import { ratingLookup } from "./balance";
 import { buildSitOut, computeStreakThreshold, isForcedRest, REST_REASON, WAITING_REASON } from "./restRules";
 import type { MatchGenerationResult, RankedUnit, RuleConflict, Unit } from "./types";
 
@@ -105,7 +106,7 @@ export function generateNextMatchForCourt(
   const { teamA, teamB } =
     state.settings.format === "singles"
       ? { teamA: playing[0].playerIds, teamB: playing[1].playerIds }
-      : formBestDoublesSplit(playing, buildPairHistory(state.matches));
+      : formBestDoublesSplit(playing, buildPairHistory(state.matches), ratingLookup(state.players));
   const match = buildMatch(courtId, sequence, teamA, teamB, now);
 
   const restedPlayers = benched.flatMap((u) => u.playerIds.map((id) => playersById.get(id)!));

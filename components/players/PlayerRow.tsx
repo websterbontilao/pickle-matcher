@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { EditPlayerDialog } from "./EditPlayerDialog";
 import { RemovePlayerConfirmDialog } from "./RemovePlayerConfirmDialog";
 import { LinkPlayerControl } from "./LinkPlayerControl";
+import { SkillRatingPicker } from "./SkillRatingPicker";
 import { record, totalPlayTimeMs, winRate } from "@/lib/utils/stats";
 import { formatTotalDuration } from "@/lib/utils/duration";
 import type { Match, Player } from "@/lib/schemas";
@@ -24,8 +25,9 @@ export function PlayerRow({
   return (
     <TableRow className={!player.active ? "opacity-50" : undefined}>
       <TableCell className="py-1.5 font-medium">
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
           {player.name}
+          <SkillRatingPicker player={player} />
           {isPlaying && (
             <Badge className="gap-1 border-transparent bg-green-600/15 text-[11px] font-normal text-green-700 dark:text-green-400">
               <CircleDot className="size-2.5" />

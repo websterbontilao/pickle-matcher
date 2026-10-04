@@ -1,6 +1,18 @@
-import type { Player, SessionState } from "@/lib/schemas";
+import {
+  SKILL_RATING_DEFAULT,
+  SKILL_RATING_MAX,
+  SKILL_RATING_MIN,
+  SKILL_RATING_STEP,
+  type Player,
+  type SessionState,
+} from "@/lib/schemas";
 import { generateId } from "@/lib/utils/id";
 import { busyPlayerIds } from "@/lib/engine/generateNextMatch";
+import { ratingLookup } from "@/lib/engine/balance";
+import { buildPairHistory } from "@/lib/engine/pairHistory";
+import { formBestDoublesSplit } from "@/lib/engine/pairing";
+import { getSchedulableUnits } from "@/lib/engine/units";
+import { currentMatchForCourt, isMatchSwappable } from "./rounds";
 import { isNameTaken } from "@/lib/utils/names";
 
 export interface AddPlayersInput {
@@ -34,6 +46,7 @@ export function addPlayers(state: SessionState, input: AddPlayersInput): Session
       consecutiveSitOuts: 0,
       newcomer: state.sessionStarted,
       gamesCredit: 0,
+      skillRating: SKILL_RATING_DEFAULT,
     });
   });
 
@@ -114,4 +127,43 @@ export function unlinkPlayers(state: SessionState, input: UnlinkPlayersInput): S
       return p;
     }),
   };
+}
+
+export interface SetSkillRatingInput {
+  id: string;
+  skillRating: number;
+}
+
+/**
+ * Sets a player's skill rating (snapped to the 2.0–6.0 half-step scale),
+ * then rebalances: every seated doubles match they're in that hasn't
+ * started yet is re-split into the fairest teams — same four players, so
+ * the queue is untouched. Calculated forecast matches rebalance on their
+ * own; started matches and planned matches are never changed.
+ */
+export function setSkillRating(state: SessionState, input: SetSkillRatingInput): SessionState {
+  const snapped = Math.round(input.skillRating / SKILL_RATING_STEP) * SKILL_RATING_STEP;
+  const skillRating = Math.min(SKILL_RATING_MAX, Math.max(SKILL_RATING_MIN, snapped));
+  const target = state.players.find((p) => p.id === input.id);
+  if (!target || target.skillRating === skillRating) return state;
+
+  const players = state.players.map((p) => (p.id === input.id ? { ...p, skillRating } : p));
+  if (state.settings.format === "singles") return { ...state, players };
+
+  const toRebalance = new Set(
+    state.courts
+      .map((c) => currentMatchForCourt(state, c.id))
+      .filter((m) => m && m.winner === null && isMatchSwappable(m) && [...m.teamA, ...m.teamB].includes(input.id))
+      .map((m) => m!.id),
+  );
+  const ratingOf = ratingLookup(players);
+  const matches = state.matches.map((m) => {
+    if (!toRebalance.has(m.id)) return m;
+    const seatedIds = new Set([...m.teamA, ...m.teamB]);
+    const units = getSchedulableUnits(players.filter((p) => seatedIds.has(p.id)));
+    const history = buildPairHistory(state.matches.filter((other) => other.id !== m.id));
+    return { ...m, ...formBestDoublesSplit(units, history, ratingOf) };
+  });
+
+  return { ...state, players, matches };
 }

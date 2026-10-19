@@ -70,7 +70,7 @@ export interface RemovePlayerInput {
   id: string;
 }
 
-/** Soft-delete only: sets active:false, never removes the record, so
+/** Soft-delete only: sets active:false (stamping `removedAt`), never removes the record, so
  * history/stats and any already-generated matches are preserved untouched.
  * No-ops while the player is currently seated in an undecided match
  * (pending or in-progress) — they must be swapped out or finish their
@@ -79,7 +79,7 @@ export function removePlayer(state: SessionState, input: RemovePlayerInput): Ses
   if (busyPlayerIds(state).has(input.id)) return state;
   return {
     ...state,
-    players: state.players.map((p) => (p.id === input.id ? { ...p, active: false } : p)),
+    players: state.players.map((p) => (p.id === input.id && p.active ? { ...p, active: false, removedAt: Date.now() } : p)),
   };
 }
 

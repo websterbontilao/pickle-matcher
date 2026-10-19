@@ -39,7 +39,7 @@ export function PlayerRow({
           )}
           {!player.active && (
             <Badge variant="outline" className="text-[11px] font-normal">
-              left session
+              left session{player.removedAt !== undefined && ` · ${formatTimeOfDay(player.removedAt)}`}
             </Badge>
           )}
         </div>

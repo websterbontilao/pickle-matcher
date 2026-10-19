@@ -11,6 +11,10 @@ export const PlayerSchema = z.object({
   linkedPlayerId: z.string().optional(),
   active: z.boolean(),
   joinedAt: z.number(),
+  /** When the player was removed from the session (`active` set to false).
+   * Absent for active players and for removals from before this was
+   * recorded. */
+  removedAt: z.number().optional(),
   /** Secondary sort key used to break ties on `gamesPlayed` when picking who
    * plays next — effectively "position in line". Starts equal to `joinedAt`
    * (so unplayed players queue in join order) and gets bumped to the back —

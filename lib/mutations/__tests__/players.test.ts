@@ -50,8 +50,15 @@ describe("removePlayer", () => {
 
     expect(state.players.find((p) => p.id === target.id)?.active).toBe(false);
     expect(state.matches).toEqual(matchesBeforeRemoval);
+    expect(state.players.find((p) => p.id === target.id)?.removedAt).toEqual(expect.any(Number));
     // Player record itself is preserved, not deleted.
     expect(state.players.some((p) => p.id === target.id)).toBe(true);
+  });
+
+  it("keeps the original removal time if removed again", () => {
+    const player = makePlayer({ active: false, removedAt: 123 });
+    const state = removePlayer(baseState({ players: [player] }), { id: player.id });
+    expect(state.players[0].removedAt).toBe(123);
   });
 
   it("no-ops while the player is currently seated in an undecided match", () => {

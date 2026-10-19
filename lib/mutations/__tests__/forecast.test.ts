@@ -113,11 +113,11 @@ describe("forecast", () => {
   });
 
   it("doesn't call a match likely if its players first have to play an earlier forecast match", () => {
-    // 8 players, 1 court: the 4 waiting play match 1, then come back for match 3.
+    // 8 players, 1 court: the 4 waiting play match 1, then most come back for match 3.
     const state = fillOpenCourts(startSession(setupState(regulars(8))));
     const f = forecast(state);
     expect(f[0].confidence).toBe("likely");
-    expect(seated(f[2]).sort()).toEqual(seated(f[0]).sort());
+    expect(seated(f[2]).some((id) => seated(f[0]).includes(id))).toBe(true);
     expect(f[2].confidence).toBe("tentative");
   });
 
@@ -166,7 +166,7 @@ describe("swapping in the forecast", () => {
   it("swaps two players between forecast matches, using the incoming player's nearest appearance", () => {
     const state = started(16);
     const before = forecast(state);
-    const a = before[0].teamA[0];
+    const a = seated(before[0]).find((id) => !seated(before[3]).includes(id))!;
     const b = seated(before[3]).find((id) => !seated(before[0]).includes(id) && !seated(before[1]).includes(id) && !seated(before[2]).includes(id))!;
     const next = swap(state, 0, a, b);
     expect(next.plannedMatches).toHaveLength(4);

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { generateNextMatchForCourt } from "@/lib/engine/generateNextMatch";
+import { generateNextMatchForCourt, nextUpQueue, repeatLookback } from "@/lib/engine/generateNextMatch";
+import { currentMatchForCourt, fillOpenCourts, recordResult, startMatch } from "@/lib/mutations/rounds";
+import { startSession } from "@/lib/mutations/settings";
 import { EMPTY_SESSION_STATE, type Match, type Player, type SessionState } from "@/lib/schemas";
 
 let idCounter = 0;
@@ -309,5 +311,110 @@ describe("generateNextMatchForCourt — singles", () => {
 
     const seated = [...result.match!.teamA, ...result.match!.teamB];
     expect(seated).toContain(overdue.id);
+  });
+});
+
+describe("generateNextMatchForCourt — avoiding a repeat foursome", () => {
+  const DOUBLES = { format: "doubles", courtCount: 1, resultEntry: "winner" } as const;
+
+  function played(teamA: string[], teamB: string[], n: number): Match {
+    return { id: `m${n}`, roundNumber: n, courtId: "c1", teamA, teamB, winner: "A", startedAt: 1, timestamp: n };
+  }
+
+  function seatedIds(result: ReturnType<typeof generateNextMatchForCourt>): string[] {
+    return [...result.match!.teamA, ...result.match!.teamB].sort();
+  }
+
+  // a–d are first in line and just played together; e and f wait behind them.
+  function justPlayed(extra: Partial<Player>[] = [{}, {}]): SessionState {
+    const front = ["a", "b", "c", "d"].map((id, i) => makePlayer({ id, queuePosition: i + 1 }));
+    const back = extra.map((o, i) => makePlayer({ id: "ef"[i], queuePosition: 5 + i, gamesPlayed: 1, ...o }));
+    return baseState({ players: [...front, ...back], matches: [played(["a", "b"], ["c", "d"], 1)], matchSequence: 1, settings: DOUBLES });
+  }
+
+  it("swaps the last two of the four for the next two in line", () => {
+    const state = justPlayed();
+    const result = generateNextMatchForCourt(state, "c1");
+    expect(seatedIds(result)).toEqual(["a", "b", "e", "f"]);
+    expect(result.restedPlayerIds).toEqual(expect.arrayContaining(["c", "d"]));
+    // Next Up shows the swapped lineup first, so it matches what gets seated.
+    expect(nextUpQueue(state).slice(0, 4).flatMap((u) => u.playerIds).sort()).toEqual(["a", "b", "e", "f"]);
+  });
+
+  it("swaps just one when only one other player is waiting", () => {
+    expect(seatedIds(generateNextMatchForCourt(justPlayed([{}]), "c1"))).toEqual(["a", "b", "c", "e"]);
+  });
+
+  it("swaps two players when only a linked pair is waiting", () => {
+    const state = justPlayed([{ linkedPlayerId: "f" }, { linkedPlayerId: "e" }]);
+    expect(seatedIds(generateNextMatchForCourt(state, "c1"))).toEqual(["a", "b", "e", "f"]);
+  });
+
+  it("swaps in a waiting player over a resting one", () => {
+    const state = justPlayed([{ consecutiveGames: 1 }, {}]);
+    expect(seatedIds(generateNextMatchForCourt(state, "c1"))).toEqual(["a", "b", "c", "f"]);
+  });
+
+  it("never swaps out a newcomer", () => {
+    const state = justPlayed();
+    const newcomers = { ...state, players: state.players.map((p) => (p.id === "e" || p.id === "f" ? p : { ...p, newcomer: true })) };
+    expect(seatedIds(generateNextMatchForCourt(newcomers, "c1"))).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("lets the repeat stand when no one else is free", () => {
+    const state = justPlayed([]);
+    expect(seatedIds(generateNextMatchForCourt(state, "c1"))).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("only looks back the last few matches", () => {
+    const state = justPlayed();
+    const lookback = repeatLookback(state);
+    const later = Array.from({ length: lookback }, (_, i) => played(["w", "x"], ["y", "z"], i + 2));
+    const old = { ...state, matches: [...state.matches, ...later], matchSequence: lookback + 1 };
+    expect(seatedIds(generateNextMatchForCourt(old, "c1"))).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("looks back the last few matches of every court, not just the open one", () => {
+    const state = justPlayed();
+    const lookback = repeatLookback(state);
+    const otherCourt = Array.from({ length: lookback }, (_, i) => ({ ...played(["w", "x"], ["y", "z"], i + 2), courtId: "c2" }));
+    const busyElsewhere = { ...state, matches: [...state.matches, ...otherCourt], matchSequence: lookback + 1 };
+    expect(seatedIds(generateNextMatchForCourt(busyElsewhere, "c1"))).toEqual(["a", "b", "e", "f"]);
+  });
+
+  it("looks back one full rotation of the pool, never fewer than 2 matches", () => {
+    const pool = (count: number, courtCount: number) =>
+      baseState({
+        players: Array.from({ length: count }, () => makePlayer()),
+        courts: Array.from({ length: courtCount }, (_, i) => ({ id: `c${i + 1}`, name: `Court ${i + 1}` })),
+      });
+    expect(repeatLookback(pool(6, 1))).toBe(2);
+    expect(repeatLookback(pool(12, 1))).toBe(3);
+    expect(repeatLookback(pool(16, 1))).toBe(4);
+    expect(repeatLookback(pool(12, 2))).toBe(2);
+  });
+
+  it.each([
+    [8, 1],
+    [12, 1],
+    [16, 1],
+    [12, 2],
+    [16, 2],
+  ])("keeps %i players on %i court(s) from replaying a recent foursome, with games still even", (count, courtCount) => {
+    const players = Array.from({ length: count }, (_, i) => makePlayer({ id: `s${i + 1}`, queuePosition: i + 1 }));
+    const courts = Array.from({ length: courtCount }, (_, i) => ({ id: `c${i + 1}`, name: `Court ${i + 1}` }));
+    let state = fillOpenCourts(startSession(baseState({ players, courts, sessionStarted: false, settings: { ...DOUBLES, courtCount } })));
+    const lineups: string[] = [];
+    for (let n = 0; n < 12; n++) {
+      const match = currentMatchForCourt(state, courts[n % courtCount].id)!;
+      lineups.push([...match.teamA, ...match.teamB].sort().join());
+      state = fillOpenCourts(startMatch(state, { matchId: match.id }));
+      state = fillOpenCourts(recordResult(state, { matchId: match.id, winner: "A" }));
+    }
+    // Each court's lookback, with courts taking turns, spans lookback × courtCount overall.
+    const window = repeatLookback(state) * courtCount;
+    lineups.forEach((lineup, i) => expect(lineups.slice(Math.max(0, i - window), i)).not.toContain(lineup));
+    const games = state.players.map((p) => p.gamesPlayed);
+    expect(Math.max(...games) - Math.min(...games)).toBeLessThanOrEqual(1);
   });
 });

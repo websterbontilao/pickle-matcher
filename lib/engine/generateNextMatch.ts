@@ -61,17 +61,146 @@ function streakThreshold(state: SessionState): number {
   return computeStreakThreshold(activePlayerCount, state.courts.length, playersPerMatch);
 }
 
-/** Everyone free to be seated right now (active and not in any undecided
- * current match), grouped into units for the session's format and in the
- * exact order the scheduler will consider them — newcomers, then forced
- * play, then normal priority, then forced rest. This is what the Next Up
- * preview renders, so it always matches what actually happens. */
-export function nextUpQueue(state: SessionState): RankedUnit[] {
+/** Everyone free to be seated right now, ranked — newcomers, then forced
+ * play, then normal priority, then forced rest — before any reordering to
+ * avoid a repeat foursome. */
+function rankedQueue(state: SessionState): RankedUnit[] {
   const busy = busyPlayerIds(state);
   const eligible = state.players.filter((p) => p.active && !busy.has(p.id));
   const units = state.settings.format === "singles" ? getSoloUnits(eligible) : getSchedulableUnits(eligible);
   const playersById = new Map(eligible.map((p) => [p.id, p]));
   return rankUnits(units, playersById, streakThreshold(state));
+}
+
+/** Everyone free to be seated right now (active and not in any undecided
+ * current match), grouped into units for the session's format and in the
+ * exact order the scheduler will consider them — newcomers, then forced
+ * play, then normal priority, then forced rest — with anyone swapped in to
+ * avoid a repeat foursome moved up into the next match. This is what the
+ * Next Up preview renders, so it always matches what actually happens. */
+export function nextUpQueue(state: SessionState): RankedUnit[] {
+  const queue = rankedQueue(state);
+  if (state.plannedMatches.length > 0) return queue;
+  const pick = pickLineup(state, queue);
+  return pick?.swapped ? [...pick.playing, ...pick.benched] : queue;
+}
+
+/** The fewest of each court's recent matches a doubles lineup is checked
+ * against. */
+export const MIN_REPEAT_LOOKBACK = 2;
+
+/** How many of each court's most recent matches a doubles lineup is checked
+ * against — the same four players aren't put together again while they're
+ * within this window on any court. Long enough to cover one full rotation
+ * of the pool (e.g. 3 matches for 12 players on one court), so groups that
+ * would otherwise cycle back as the same block get scrambled. */
+export function repeatLookback(state: SessionState): number {
+  const activePlayerCount = state.players.filter((p) => p.active).length;
+  return Math.max(MIN_REPEAT_LOOKBACK, Math.ceil(activePlayerCount / (4 * Math.max(1, state.courts.length))));
+}
+
+/** How many player slots are swapped out of the queue's pick to avoid a
+ * repeat foursome, so the group really gets reshuffled rather than coming
+ * back as three of the same four. Fewer only when that's all that works. */
+export const REPEAT_SWAPS = 2;
+
+function lineupKey(ids: string[]): string {
+  return [...ids].sort().join(",");
+}
+
+function recentLineups(matches: Match[], lookback: number): Set<string> {
+  const byCourt = new Map<string, Match[]>();
+  for (const match of matches) byCourt.set(match.courtId, [...(byCourt.get(match.courtId) ?? []), match]);
+  return new Set(
+    [...byCourt.values()].flatMap((courtMatches) =>
+      courtMatches
+        .sort((a, b) => b.roundNumber - a.roundNumber)
+        .slice(0, lookback)
+        .map((m) => lineupKey([...m.teamA, ...m.teamB])),
+    ),
+  );
+}
+
+/** Who plays and who sits out of the next match, or null if there aren't
+ * enough free players. In doubles, if the queue's pick is a foursome that
+ * played together within the last `repeatLookback` matches of any court, up to
+ * `REPEAT_SWAPS` slots (or fewer, if that's all that works) are swapped for
+ * other waiting players. Newcomers are never swapped out. Swapping out a
+ * guaranteed player or swapping in a resting one bends a fairness rule, so
+ * it's only done when no swap without that works — which is the usual case when the courts take
+ * the whole pool in turns (e.g. 8 players on one court: everyone waiting
+ * just played, everyone seated just sat out). If no swap avoids a repeat,
+ * the repeat stands. */
+function pickLineup(
+  state: SessionState,
+  queue: RankedUnit[],
+): { playing: RankedUnit[]; benched: RankedUnit[]; swapped: boolean } | null {
+  const target = state.settings.format === "singles" ? 2 : 4;
+  const totalSlots = queue.reduce((sum, u) => sum + u.playerIds.length, 0);
+  if (totalSlots < target) return null;
+
+  const { playing, benched } = splitUnitsByRest(queue, target);
+  if (target !== 4) return { playing, benched, swapped: false };
+  const recent = recentLineups(state.matches, repeatLookback(state));
+  const key = (units: Unit[]) => lineupKey(units.flatMap((u) => u.playerIds));
+  if (!recent.has(key(playing))) return { playing, benched, swapped: false };
+
+  const index = new Map(queue.map((u, i) => [u, i]));
+  const outs = unitSubsets(
+    playing.filter((u) => u.tier !== "newcomer"),
+    REPEAT_SWAPS,
+  );
+  const ins = unitSubsets(
+    benched.filter((u) => u.tier === "normal" || u.tier === "resting"),
+    REPEAT_SWAPS,
+  );
+  const slots = (units: Unit[]) => units.reduce((sum, u) => sum + u.playerIds.length, 0);
+  const indexSum = (units: RankedUnit[]) => units.reduce((sum, u) => sum + index.get(u)!, 0);
+
+  // A swap that bends no fairness rule (resting players pulled in,
+  // guaranteed players benched) first; then the most slots swapped, up to
+  // REPEAT_SWAPS; then the fewest rules bent; then the swap that pulls in
+  // players nearest the front of the queue in place of the ones nearest
+  // the back.
+  const rank = (c: { out: RankedUnit[]; in: RankedUnit[]; slots: number; cost: number }) => {
+    const bent = slots(c.in.filter((u) => u.tier === "resting")) + slots(c.out.filter((u) => u.tier === "guaranteed"));
+    return [bent > 0 ? 1 : 0, -c.slots, bent, c.cost];
+  };
+  const better = (a: number[], b: number[]) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2] || a[3] - b[3];
+  let best: { out: RankedUnit[]; in: RankedUnit[]; slots: number; cost: number } | null = null;
+  for (const out of outs) {
+    for (const add of ins) {
+      if (slots(out) !== slots(add)) continue;
+      const candidate = { out, in: add, slots: slots(out), cost: indexSum(add) - indexSum(out) };
+      if (best && better(rank(candidate), rank(best)) >= 0) continue;
+      const lineup = [...playing.filter((u) => !out.includes(u)), ...add];
+      if (!recent.has(key(lineup))) best = candidate;
+    }
+  }
+  if (!best) return { playing, benched, swapped: false };
+
+  const byQueueOrder = (a: RankedUnit, b: RankedUnit) => index.get(a)! - index.get(b)!;
+  const chosen = best;
+  return {
+    playing: [...playing.filter((u) => !chosen.out.includes(u)), ...chosen.in].sort(byQueueOrder),
+    benched: [...benched.filter((u) => !chosen.in.includes(u)), ...chosen.out].sort(byQueueOrder),
+    swapped: true,
+  };
+}
+
+/** Every non-empty combination of units covering at most `maxSlots` player
+ * slots. */
+function unitSubsets<U extends Unit>(units: U[], maxSlots: number): U[][] {
+  const subsets: U[][] = [];
+  const walk = (start: number, picked: U[], used: number) => {
+    if (picked.length > 0) subsets.push(picked);
+    for (let i = start; i < units.length; i++) {
+      const next = used + units[i].playerIds.length;
+      if (next <= maxSlots) walk(i + 1, [...picked, units[i]], next);
+    }
+  };
+  walk(0, [], 0);
+  return subsets;
 }
 
 /**
@@ -93,16 +222,14 @@ export function generateNextMatchForCourt(
     return generatePlannedMatch(state, state.plannedMatches[0], courtId, sequence, now);
   }
   const playersById = new Map(state.players.map((p) => [p.id, p]));
-  const queue = nextUpQueue(state);
   const threshold = streakThreshold(state);
-  const target = state.settings.format === "singles" ? 2 : 4;
-  const totalSlots = queue.reduce((sum, u) => sum + u.playerIds.length, 0);
+  const pick = pickLineup(state, rankedQueue(state));
 
-  if (totalSlots < target) {
+  if (!pick) {
     return { match: null, restedSitOuts: [], restedPlayerIds: [] };
   }
 
-  const { playing, benched } = splitUnitsByRest(queue, target);
+  const { playing, benched } = pick;
   const { teamA, teamB } =
     state.settings.format === "singles"
       ? { teamA: playing[0].playerIds, teamB: playing[1].playerIds }
@@ -190,7 +317,7 @@ function ruleConflicts(queue: RankedUnit[], schedulerPick: Unit[], playingIds: S
  * normal-tier players to fill the match. Works at the Unit level, so a
  * linked pair rests or plays together, and the guarantee is by slot count
  * rather than headcount. */
-function splitUnitsByRest(queue: RankedUnit[], target: number): { playing: Unit[]; benched: Unit[] } {
+function splitUnitsByRest<U extends RankedUnit>(queue: U[], target: number): { playing: U[]; benched: U[] } {
   const guaranteed = queue.filter((u) => u.tier === "newcomer" || u.tier === "guaranteed");
   const guaranteedSlots = guaranteed.reduce((sum, u) => sum + u.playerIds.length, 0);
 
@@ -225,7 +352,7 @@ function splitUnitsByRest(queue: RankedUnit[], target: number): { playing: Unit[
  * split covers the most total priority — i.e. is biased toward including
  * whoever has played the fewest games.
  */
-function selectPlayingUnits(units: Unit[], target: number): { playing: Unit[]; benched: Unit[] } {
+function selectPlayingUnits<U extends Unit>(units: U[], target: number): { playing: U[]; benched: U[] } {
   const n = units.length;
   const twos = units.map((u, index) => ({ u, index })).filter((x) => x.u.playerIds.length === 2);
   const ones = units.map((u, index) => ({ u, index })).filter((x) => x.u.playerIds.length === 1);

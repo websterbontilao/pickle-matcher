@@ -280,8 +280,10 @@ describe("scheduling stays correct across swaps", () => {
 
     state = playCourt(state, "c2");
     expect(state.players.reduce((sum, p) => sum + p.gamesPlayed, 0)).toBe(8);
-    // Court 2's refill comes from the earliest finishers (court 1's group).
-    expect(seated(currentMatchForCourt(state, "c2")!).sort()).toEqual(c1Finishers.sort());
+    // Court 2's refill comes from the earliest finishers (court 1's group),
+    // with two swapped out so the same four don't play together again.
+    const c2Refill = seated(currentMatchForCourt(state, "c2")!);
+    expect(c2Refill.filter((id) => c1Finishers.includes(id))).toHaveLength(2);
   });
 
   it("subbing a benched player in clears their streak; the player subbed out keeps their place in line", () => {

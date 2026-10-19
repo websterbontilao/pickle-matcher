@@ -18,6 +18,8 @@ _Avoid_: Queue (that's the player waiting order), Schedule
 **Planned match** — a forecast match the organizer has locked in by swapping players in it. Swapping in match N locks every forecast match up to and including N, so nothing ahead of the edit can rearrange itself around it. When a court opens, planned matches are seated first, in order — ahead of newcomers and fairness rules (the organizer's call wins; rule conflicts are warned about, never blocked). If a planned player becomes unavailable, their spot is refilled from the queue and the rest of the plan stands.
 _Avoid_: Reservation, pinned match
 
+**Repeat foursome** — the same four players matched together again while that lineup is still among the recent matches of any court. "Recent" covers one full turn of the whole player pool on that court, and never less than 2 matches: 3 for 12 players on 1 court, 2 for 8. The scheduler avoids it by swapping 2 players (1 if that's all that works) for others who are waiting, even if that means someone plays twice in a row or sits out twice in a row. If nobody else is free, the repeat goes ahead.
+
 **Skill rating** — how strong a player is, from 2.0 to 6.0 in half steps (default 2.0). Used only to split already-chosen players into balanced teams; it never decides *who* plays or when.
 _Avoid_: Ranking (that's queue order), Level
 

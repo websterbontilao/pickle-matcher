@@ -44,12 +44,16 @@ function newcomersBehindPlans(state: SessionState): Player[] {
 
 function ForecastCard({
   index,
+  number,
   match,
   state,
   onSwap,
   onUnlock,
 }: {
   index: number;
+  /** Position in the whole session, continuing from the matches already
+   * seated, so a match keeps its number as courts finish. */
+  number: number;
   match: ForecastMatch;
   state: SessionState;
   onSwap: (index: number, outPlayerId: string, inPlayerId: string) => void;
@@ -71,7 +75,7 @@ function ForecastCard({
     <li className="px-3 py-2.5">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">Match {index + 1}</span>
+          <span className="text-xs font-medium text-muted-foreground">Match {number}</span>
           <ConfidenceBadge confidence={match.confidence} />
         </div>
         {match.plannedMatchId && (
@@ -165,6 +169,7 @@ export function UpcomingView() {
             <ForecastCard
               key={i}
               index={i}
+              number={state.matchSequence + i + 1}
               match={m}
               state={state}
               onSwap={handleSwap}

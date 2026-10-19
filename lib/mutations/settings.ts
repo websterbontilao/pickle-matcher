@@ -51,6 +51,26 @@ export function setFormat(state: SessionState, input: SetFormatInput): SessionSt
   return { ...state, settings: { ...state.settings, format: input.format }, plannedMatches: [] };
 }
 
+export interface SetRotationInput {
+  rotation: "casual" | "stack";
+}
+
+/** Locked once the session starts, like format. */
+export function setRotation(state: SessionState, input: SetRotationInput): SessionState {
+  if (hasSessionStarted(state)) return state;
+  if ((state.settings.rotation ?? "casual") === input.rotation) return state;
+  return { ...state, settings: { ...state.settings, rotation: input.rotation } };
+}
+
+export interface SetStackNewcomersInput {
+  stackNewcomers: "next" | "back";
+}
+
+export function setStackNewcomers(state: SessionState, input: SetStackNewcomersInput): SessionState {
+  if ((state.settings.stackNewcomers ?? "back") === input.stackNewcomers) return state;
+  return { ...state, settings: { ...state.settings, stackNewcomers: input.stackNewcomers } };
+}
+
 export interface SetResultEntryInput {
   resultEntry: "winner" | "score";
 }

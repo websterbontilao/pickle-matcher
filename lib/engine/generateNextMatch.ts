@@ -3,7 +3,8 @@ import { buildPairHistory } from "./pairHistory";
 import { getSchedulableUnits, getSoloUnits, rankUnits } from "./units";
 import { formBestDoublesSplit } from "./pairing";
 import { ratingLookup } from "./balance";
-import { buildSitOut, computeStreakThreshold, isForcedRest, REST_REASON, WAITING_REASON } from "./restRules";
+import { buildSitOut, computeStreakThreshold, isForcedRest, rankedGames, REST_REASON, WAITING_REASON } from "./restRules";
+import { stackOrder } from "./stack";
 import type { MatchGenerationResult, RankedUnit, RuleConflict, Unit } from "./types";
 
 export interface GenerateMatchDeps {
@@ -64,9 +65,34 @@ function streakThreshold(state: SessionState): number {
 /** Everyone free to be seated right now, ranked — newcomers, then forced
  * play, then normal priority, then forced rest — before any reordering to
  * avoid a repeat foursome. */
-function rankedQueue(state: SessionState): RankedUnit[] {
+function freePlayers(state: SessionState): Player[] {
   const busy = busyPlayerIds(state);
-  const eligible = state.players.filter((p) => p.active && !busy.has(p.id));
+  return state.players.filter((p) => p.active && !busy.has(p.id));
+}
+
+function isStack(state: SessionState): boolean {
+  return state.settings.rotation === "stack";
+}
+
+/** The paddle stack as queue units, in the order it seats them. Only
+ * newcomers who skip the stack get a tier other than "normal" — the stack
+ * has no rests or guarantees. */
+function stackQueue(state: SessionState): RankedUnit[] {
+  const playersById = new Map(state.players.map((p) => [p.id, p]));
+  return stackOrder(state, freePlayers(state)).units.map((u) => {
+    const players = u.playerIds.map((id) => playersById.get(id)!);
+    return {
+      playerIds: u.playerIds,
+      rankedGames: players.reduce((sum, p) => sum + rankedGames(p), 0),
+      queuePosition: Math.min(...players.map((p) => p.queuePosition)),
+      newcomer: u.newcomer,
+      tier: u.newcomer && state.settings.stackNewcomers === "next" ? "newcomer" : "normal",
+    };
+  });
+}
+
+function rankedQueue(state: SessionState): RankedUnit[] {
+  const eligible = freePlayers(state);
   const units = state.settings.format === "singles" ? getSoloUnits(eligible) : getSchedulableUnits(eligible);
   const playersById = new Map(eligible.map((p) => [p.id, p]));
   return rankUnits(units, playersById, streakThreshold(state));
@@ -79,6 +105,7 @@ function rankedQueue(state: SessionState): RankedUnit[] {
  * avoid a repeat foursome moved up into the next match. This is what the
  * Next Up preview renders, so it always matches what actually happens. */
 export function nextUpQueue(state: SessionState): RankedUnit[] {
+  if (isStack(state)) return stackQueue(state);
   const queue = rankedQueue(state);
   if (state.plannedMatches.length > 0) return queue;
   const pick = pickLineup(state, queue);
@@ -221,6 +248,7 @@ export function generateNextMatchForCourt(
   if (state.plannedMatches.length > 0) {
     return generatePlannedMatch(state, state.plannedMatches[0], courtId, sequence, now);
   }
+  if (isStack(state)) return generateStackMatch(state, courtId, sequence, now);
   const playersById = new Map(state.players.map((p) => [p.id, p]));
   const threshold = streakThreshold(state);
   const pick = pickLineup(state, rankedQueue(state));
@@ -241,6 +269,22 @@ export function generateNextMatchForCourt(
     match,
     restedSitOuts: restedPlayers.map((p) => buildSitOut(p, sequence, reasonFor(p, threshold))),
     restedPlayerIds: restedPlayers.map((p) => p.id),
+  };
+}
+
+/** Paddle stack: seats the stack's next lineup exactly as it comes up.
+ * Everyone else free is logged as waiting — the stack has no rests. */
+function generateStackMatch(state: SessionState, courtId: string, sequence: number, now: () => number): MatchGenerationResult {
+  const free = freePlayers(state);
+  const { next } = stackOrder(state, free);
+  if (!next) return { match: null, restedSitOuts: [], restedPlayerIds: [] };
+  const match = buildMatch(courtId, sequence, next.teamA, next.teamB, now);
+  const playing = new Set([...next.teamA, ...next.teamB]);
+  const waiting = free.filter((p) => !playing.has(p.id));
+  return {
+    match,
+    restedSitOuts: waiting.map((p) => buildSitOut(p, sequence, WAITING_REASON)),
+    restedPlayerIds: waiting.map((p) => p.id),
   };
 }
 

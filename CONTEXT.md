@@ -20,6 +20,11 @@ _Avoid_: Reservation, pinned match
 
 **Repeat foursome** — the same four players matched together again while that lineup is still among the recent matches of any court. "Recent" covers one full turn of the whole player pool on that court, and never less than 2 matches: 3 for 12 players on 1 court, 2 for 8. The scheduler avoids it by swapping 2 players (1 if that's all that works) for others who are waiting, even if that means someone plays twice in a row or sits out twice in a row. If nobody else is free, the repeat goes ahead.
 
+**Rotation** — how players are picked for the next match; chosen in Setup and locked once the session starts.
+- **Casual rotation** — the default: fewest games first, with rests, guarantees, skill-balanced teams and no repeat foursomes.
+- **Paddle stack** — 4 off, 4 on, strictly in line order. A pair coming off court waits for the next pair with the same result: winners play winners, losers play losers, and teammates are shuffled across the two pairs. Players without a result to match go on in line order, 1st & 2nd vs 3rd & 4th. Newcomers join the back of the stack, or play the next match if Setup says so.
+_Avoid_: Mode, algorithm
+
 **Skill rating** — how strong a player is, from 2.0 to 6.0 in half steps (default 2.0). Used only to split already-chosen players into balanced teams; it never decides *who* plays or when.
 _Avoid_: Ranking (that's queue order), Level
 

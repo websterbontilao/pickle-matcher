@@ -7,10 +7,21 @@ export const FORECAST_LENGTH = 5;
 
 export type ForecastConfidence = "likely" | "tentative" | "planned";
 
+/** Why a forecast match is tentative: players it's waiting on. */
+export interface TentativeReason {
+  /** Players still in a current match on a court. */
+  onCourt: string[];
+  /** Players who play an earlier forecast match first, with the index of
+   * the latest such match. */
+  inEarlierMatch: { playerId: string; matchIndex: number }[];
+}
+
 export interface ForecastMatch {
   teamA: string[];
   teamB: string[];
   confidence: ForecastConfidence;
+  /** Set when `confidence` is "tentative". */
+  tentativeReason: TentativeReason | null;
   /** The planned match this entry comes from, or null if calculated. */
   plannedMatchId: string | null;
   ruleConflicts: RuleConflict[];
@@ -62,15 +73,13 @@ export function forecast(state: SessionState, length = FORECAST_LENGTH): Forecas
       if (!generated.match) continue;
       sim = applyGeneratedMatch(sim, generated);
       const { teamA, teamB } = generated.match;
-      const alreadyForecast = new Set(result.flatMap((m) => [...m.teamA, ...m.teamB]));
+      const reason = tentativeReason([...teamA, ...teamB], busyNow, result);
+      const confidence = generated.plannedMatchId ? "planned" : reason ? "tentative" : "likely";
       result.push({
         teamA,
         teamB,
-        confidence: generated.plannedMatchId
-          ? "planned"
-          : [...teamA, ...teamB].every((id) => !busyNow.has(id) && !alreadyForecast.has(id))
-            ? "likely"
-            : "tentative",
+        confidence,
+        tentativeReason: confidence === "tentative" ? reason : null,
         plannedMatchId: generated.plannedMatchId ?? null,
         ruleConflicts: generated.ruleConflicts ?? [],
       });
@@ -87,6 +96,17 @@ export function forecast(state: SessionState, length = FORECAST_LENGTH): Forecas
   }
 
   return result;
+}
+
+/** Who a forecast match is waiting on, or null if everyone in it is free
+ * now and not in an earlier forecast match. */
+function tentativeReason(ids: string[], busyNow: Set<string>, earlier: ForecastMatch[]): TentativeReason | null {
+  const onCourt = ids.filter((id) => busyNow.has(id));
+  const inEarlierMatch = ids.flatMap((playerId) => {
+    const matchIndex = earlier.findLastIndex((m) => [...m.teamA, ...m.teamB].includes(playerId));
+    return matchIndex === -1 ? [] : [{ playerId, matchIndex }];
+  });
+  return onCourt.length > 0 || inEarlierMatch.length > 0 ? { onCourt, inEarlierMatch } : null;
 }
 
 export interface NextUpEntry extends RankedUnit {

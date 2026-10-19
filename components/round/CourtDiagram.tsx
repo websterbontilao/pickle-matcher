@@ -19,7 +19,7 @@ export function CourtDiagram({
   teamBHighlighted?: boolean;
 }) {
   return (
-    <div className="flex overflow-hidden rounded-lg border-2 border-foreground/15">
+    <div className="flex overflow-hidden rounded-sm border-4 border-foreground/15">
       <CourtHalf slots={teamASlots} highlighted={teamAHighlighted} />
       <KitchenStrip highlighted={teamAHighlighted} />
       <div className="w-1 shrink-0 bg-foreground/15" />

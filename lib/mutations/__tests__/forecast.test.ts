@@ -121,6 +121,27 @@ describe("forecast", () => {
     expect(f[2].confidence).toBe("tentative");
   });
 
+  it("says who a tentative match is waiting on", () => {
+    const state = fillOpenCourts(startSession(setupState(regulars(8))));
+    const onCourt = seated(currentMatchForCourt(state, "c1")!);
+    const f = forecast(state);
+    expect(f[0].tentativeReason).toBeNull();
+    f.forEach((m, i) => {
+      const earlier = f.slice(0, i).flatMap(seated);
+      const expectedOnCourt = seated(m).filter((id) => onCourt.includes(id));
+      const expectedEarlier = seated(m).filter((id) => earlier.includes(id));
+      if (expectedOnCourt.length + expectedEarlier.length === 0) return expect(m.tentativeReason).toBeNull();
+      expect(m.confidence).toBe("tentative");
+      expect(m.tentativeReason!.onCourt.sort()).toEqual(expectedOnCourt.sort());
+      expect(m.tentativeReason!.inEarlierMatch.map((e) => e.playerId).sort()).toEqual(expectedEarlier.sort());
+      // Each points at the latest earlier match the player is in.
+      for (const { playerId, matchIndex } of m.tentativeReason!.inEarlierMatch) {
+        expect(f.slice(matchIndex + 1, i).some((x) => seated(x).includes(playerId))).toBe(false);
+        expect(seated(f[matchIndex])).toContain(playerId);
+      }
+    });
+  });
+
   it("puts a newcomer in the very next forecast match", () => {
     const state = fillOpenCourts(startSession(setupState(regulars(10))));
     const withGus = addPlayers(state, { names: ["Gus"] });

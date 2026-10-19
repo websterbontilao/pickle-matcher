@@ -5,11 +5,13 @@ import { AlertTriangle, Lock, Sparkles, Unlock } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CourtDiagram } from "@/components/round/CourtDiagram";
 import { PlayerSlotBox } from "@/components/round/PlayerSlotBox";
 import { UnevenNote } from "@/components/round/UnevenNote";
 import { useSessionState } from "@/lib/hooks/useSessionState";
 import { useClearPlannedMatches, useSwapInForecast, useUnlockPlannedMatch } from "@/lib/hooks/useForecastMutations";
-import { forecast, swapInForecast, type ForecastConfidence, type ForecastMatch } from "@/lib/mutations/forecast";
+import { forecast, swapInForecast, type ForecastConfidence, type ForecastMatch, type TentativeReason } from "@/lib/mutations/forecast";
+import { currentMatchForCourt } from "@/lib/mutations/rounds";
 import type { Player, SessionState } from "@/lib/schemas";
 
 const CONFIDENCE_LABEL: Record<ForecastConfidence, string> = {
@@ -32,6 +34,35 @@ function ConfidenceBadge({ confidence }: { confidence: ForecastConfidence }) {
       {CONFIDENCE_LABEL[confidence]}
     </Badge>
   );
+}
+
+function nameList(names: string[]): string {
+  return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`;
+}
+
+/** Who a tentative match is waiting on, e.g. "a & b are still on Court 1 ·
+ * e plays Match 4 first". */
+function describeTentative(reason: TentativeReason, state: SessionState): string {
+  const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name ?? "Unknown";
+  const verb = (ids: string[], one: string, many: string) => (ids.length === 1 ? one : many);
+  const parts: string[] = [];
+
+  for (const court of state.courts) {
+    const match = currentMatchForCourt(state, court.id);
+    if (!match) continue;
+    const ids = reason.onCourt.filter((id) => match.teamA.includes(id) || match.teamB.includes(id));
+    if (ids.length > 0) parts.push(`${nameList(ids.map(nameOf))} ${verb(ids, "is", "are")} still on ${court.name}`);
+  }
+
+  const byMatch = new Map<number, string[]>();
+  for (const { playerId, matchIndex } of reason.inEarlierMatch) {
+    byMatch.set(matchIndex, [...(byMatch.get(matchIndex) ?? []), playerId]);
+  }
+  for (const [matchIndex, ids] of [...byMatch].sort((a, b) => a[0] - b[0])) {
+    parts.push(`${nameList(ids.map(nameOf))} ${verb(ids, "plays", "play")} Match ${state.matchSequence + matchIndex + 1} first`);
+  }
+
+  return parts.join(" · ");
 }
 
 /** Newcomers who are waiting but stuck behind planned matches they aren't
@@ -86,11 +117,14 @@ function ForecastCard({
         )}
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-        <div className="space-y-1.5">{match.teamA.map((id) => slot(id, match.teamA))}</div>
-        <span className="text-xs text-muted-foreground">vs</span>
-        <div className="space-y-1.5">{match.teamB.map((id) => slot(id, match.teamB))}</div>
-      </div>
+      {match.tentativeReason && (
+        <p className="mb-1.5 text-xs text-muted-foreground">{describeTentative(match.tentativeReason, state)}</p>
+      )}
+
+      <CourtDiagram
+        teamASlots={match.teamA.map((id) => slot(id, match.teamA))}
+        teamBSlots={match.teamB.map((id) => slot(id, match.teamB))}
+      />
 
       <UnevenNote match={match} players={state.players} />
 
